@@ -1,7 +1,7 @@
 const express = require('express');
 const Event = require('../models/Event');
 const FoodTruck = require('../models/FoodTruck');
-const { auth, checkRole } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const router = express.Router();
 
 // @route   GET /api/events
@@ -112,7 +112,7 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/events
 // @desc    Create new event
 // @access  Private (Admin)
-router.post('/', auth, checkRole(['admin']), async (req, res) => {
+router.post('/', protect, authorize('admin'), async (req, res) => {
   try {
     const eventData = {
       ...req.body,
@@ -133,7 +133,7 @@ router.post('/', auth, checkRole(['admin']), async (req, res) => {
 // @route   PUT /api/events/:id
 // @desc    Update event
 // @access  Private (Admin/Creator)
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', protect, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
 
@@ -162,7 +162,7 @@ router.put('/:id', auth, async (req, res) => {
 // @route   DELETE /api/events/:id
 // @desc    Delete event
 // @access  Private (Admin/Creator)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
 
@@ -186,7 +186,7 @@ router.delete('/:id', auth, async (req, res) => {
 // @route   POST /api/events/:id/join
 // @desc    Join event as food truck
 // @access  Private (Food Truck Owner)
-router.post('/:id/join', auth, checkRole(['owner']), async (req, res) => {
+router.post('/:id/join', protect, authorize('owner'), async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) {
@@ -230,7 +230,7 @@ router.post('/:id/join', auth, checkRole(['owner']), async (req, res) => {
 // @route   DELETE /api/events/:id/leave
 // @desc    Leave event as food truck
 // @access  Private (Food Truck Owner)
-router.delete('/:id/leave', auth, checkRole(['owner']), async (req, res) => {
+router.delete('/:id/leave', protect, authorize('owner'), async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) {
@@ -267,7 +267,7 @@ router.delete('/:id/leave', auth, checkRole(['owner']), async (req, res) => {
 // @route   GET /api/events/my/participating
 // @desc    Get events the user's truck is participating in
 // @access  Private (Food Truck Owner)
-router.get('/my/participating', auth, checkRole(['owner']), async (req, res) => {
+router.get('/my/participating', protect, authorize('owner'), async (req, res) => {
   try {
     // Find user's food truck
     const truck = await FoodTruck.findOne({ owner: req.user.userId });
@@ -292,7 +292,7 @@ router.get('/my/participating', auth, checkRole(['owner']), async (req, res) => 
 // @route   GET /api/events/my/created
 // @desc    Get events created by the user
 // @access  Private (Admin)
-router.get('/my/created', auth, checkRole(['admin']), async (req, res) => {
+router.get('/my/created', protect, authorize('admin'), async (req, res) => {
   try {
     const events = await Event.find({ createdBy: req.user.userId })
       .populate('participatingTrucks.truck', 'name cuisineType')

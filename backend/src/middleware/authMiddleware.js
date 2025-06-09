@@ -16,11 +16,11 @@ const protect = async (req, res, next) => {
             console.log('Decoded token:', decoded); // Debug log
 
             // Get user from token
-            const user = await User.findById(decoded.id).select('-password');
+            const user = await User.findById(decoded.userId).select('-password');
             console.log('User found:', user ? { id: user._id, role: user.role } : 'No user'); // Debug log
             
             if (!user) {
-                console.error('User not found with id:', decoded.id);
+                console.error('User not found with id:', decoded.userId);
                 return res.status(401).json({ message: 'User not found' });
             }
 
