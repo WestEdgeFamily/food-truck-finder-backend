@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const config = require('../config/config');
 
 const protect = async (req, res, next) => {
     let token;
@@ -12,7 +13,7 @@ const protect = async (req, res, next) => {
             console.log('Token received:', token); // Debug log
 
             // Verify token
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key_here');
+            const decoded = jwt.verify(token, config.JWT_SECRET);
             console.log('Decoded token:', decoded); // Debug log
 
             // Get user from token
@@ -29,7 +30,14 @@ const protect = async (req, res, next) => {
             }
 
             // Add user to request object
-            req.user = user;
+            req.user = {
+                _id: user._id,
+                userId: user._id,
+                email: user.email,
+                role: user.role,
+                name: user.name || user.businessName,
+                phoneNumber: user.phoneNumber
+            };
             next();
         } catch (error) {
             console.error('Authentication error:', error);
@@ -46,20 +54,32 @@ const protect = async (req, res, next) => {
 
 // Middleware to ensure user is a food truck owner
 const isOwner = (req, res, next) => {
-    console.log('Checking owner status for user:', { id: req.user._id, role: req.user.role }); // Debug log
-    
     if (!req.user) {
-        console.error('No user object found in request');
         return res.status(401).json({ message: 'User not authenticated' });
     }
 
     if (req.user.role !== 'owner') {
-        console.error('User not authorized as owner:', { id: req.user._id, role: req.user.role });
         return res.status(403).json({ message: 'Not authorized as food truck owner' });
     }
 
-    console.log('User authorized as owner'); // Debug log
     next();
 };
 
-module.exports = { protect, isOwner }; 
+// Middleware to ensure user is a customer
+const isCustomer = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    if (req.user.role !== 'customer') {
+        return res.status(403).json({ message: 'Not authorized as customer' });
+    }
+
+    next();
+};
+
+module.exports = {
+    protect,
+    isOwner,
+    isCustomer
+}; 

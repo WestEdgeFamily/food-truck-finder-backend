@@ -18,7 +18,7 @@ const generateToken = (user) => {
 };
 
 // @desc    Register a new food truck owner
-// @route   POST /api/auth/register
+// @route   POST /api/auth/register/owner
 // @access  Public
 const registerOwner = async (req, res) => {
     try {
@@ -36,38 +36,15 @@ const registerOwner = async (req, res) => {
             password,
             businessName,
             phoneNumber,
-            role: 'owner',
-            name: businessName // Use businessName as name for owners
+            role: 'owner'
         });
 
         if (user) {
-            // Create associated food truck record
+            // Create associated food truck
             const foodTruck = await FoodTruck.create({
                 owner: user._id,
                 name: businessName,
-                businessName: businessName,
-                phoneNumber: phoneNumber,
-                description: `Welcome to ${businessName}! We're excited to serve you delicious food from our food truck.`,
-                cuisineType: 'American', // Default cuisine type
-                location: {
-                    type: 'Point',
-                    coordinates: [0, 0], // Default coordinates, will be updated when owner sets location
-                    address: '',
-                    city: '',
-                    state: '',
-                    source: 'manual',
-                    confidence: 'medium'
-                },
-                isActive: false, // Starts inactive until owner configures
-                trackingPreferences: {
-                    allowCustomerReports: true,
-                    requireLocationVerification: false,
-                    autoPostToSocial: false,
-                    enableGpsTracking: false,
-                    gpsUpdateFrequency: 30,
-                    trackingAccuracy: 'medium',
-                    shareLocationWhileOpen: true
-                }
+                isActive: false
             });
 
             console.log('Created user and food truck:', { user: user._id, foodTruck: foodTruck._id });
@@ -88,12 +65,12 @@ const registerOwner = async (req, res) => {
     }
 };
 
-// @desc    Register a new customer user
-// @route   POST /api/auth/register-user
+// @desc    Register a new customer
+// @route   POST /api/auth/register/customer
 // @access  Public
 const registerUser = async (req, res) => {
     try {
-        const { email, password, name, phoneNumber } = req.body;
+        const { email, password, name, phoneNumber, preferences } = req.body;
 
         // Check if user exists
         const userExists = await User.findOne({ email });
@@ -107,7 +84,29 @@ const registerUser = async (req, res) => {
             password,
             name,
             phoneNumber,
-            role: 'customer'
+            role: 'customer',
+            preferences: {
+                notifications: {
+                    pushEnabled: true,
+                    emailEnabled: true,
+                    favoriteUpdates: true,
+                    nearbyTrucks: true,
+                    ...preferences?.notifications
+                },
+                location: {
+                    shareLocation: true,
+                    defaultRadius: 15,
+                    autoDetectLocation: true,
+                    ...preferences?.location
+                },
+                display: {
+                    theme: 'auto',
+                    language: 'en',
+                    showDistance: true,
+                    showPrices: true,
+                    ...preferences?.display
+                }
+            }
         });
 
         if (user) {
@@ -117,6 +116,7 @@ const registerUser = async (req, res) => {
                 email: user.email,
                 name: user.name,
                 role: user.role,
+                preferences: user.preferences,
                 token
             });
         }
@@ -126,31 +126,44 @@ const registerUser = async (req, res) => {
     }
 };
 
-// @desc    Login user
+// @desc    Login user (both customer and owner)
 // @route   POST /api/auth/login
 // @access  Public
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
-
-        // Find user and include role
-        const user = await User.findOne({ email }).select('+password');
+        const user = await User.findOne({ email });
         
-        if (user && (await user.comparePassword(password))) {
-            const token = generateToken(user);
-            res.json({
-                _id: user._id,
-                email: user.email,
-                name: user.name || user.businessName,
-                role: user.role,
-                token
-            });
-        } else {
-            res.status(401).json({ message: 'Invalid email or password' });
+        if (!user) {
+            return res.status(401).json({ message: 'Invalid email or password' });
         }
+
+        const isMatch = await user.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid email or password' });
+        }
+
+        // Update last login
+        await user.updateLastLogin();
+
+        const token = jwt.sign(
+            { userId: user._id, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        });
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
+        res.status(500).json({ message: 'Error logging in' });
     }
 };
 

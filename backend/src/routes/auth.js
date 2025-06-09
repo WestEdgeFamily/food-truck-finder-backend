@@ -1,13 +1,47 @@
 const express = require('express');
 const router = express.Router();
 const { registerOwner, registerUser, loginUser } = require('../controllers/authController');
+const { protect, isOwner, isCustomer } = require('../middleware/authMiddleware');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
-// Register routes
-router.post('/register', registerOwner); // For food truck owners
-router.post('/register-user', registerUser); // For customers
+// Public routes
+router.post('/register/owner', registerOwner);
+router.post('/register/customer', registerUser);
 router.post('/login', loginUser);
+
+// Protected routes
+router.get('/me', protect, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+router.put('/preferences', protect, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Update preferences
+        user.preferences = {
+            ...user.preferences,
+            ...req.body
+        };
+
+        await user.save();
+        res.json({ message: 'Preferences updated successfully', preferences: user.preferences });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
 
 // @route   POST /api/auth/register-customer
 // @desc    Register a new customer

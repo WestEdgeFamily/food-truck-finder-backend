@@ -4,61 +4,48 @@ const User = require('../models/User');
 // Get owner's food truck
 exports.getMyTruck = async (req, res) => {
   try {
-    console.log('Looking for truck with owner ID:', req.user?.userId || req.user?._id);
-    const userId = req.user?.userId || req.user?._id;
+    const userId = req.user?.userId;
+    
     if (!userId) {
-      return res.status(401).json({ message: 'User not authenticated' });
+      return res.status(401).json({ message: 'Not authenticated' });
     }
+
+    // Find food truck by owner ID
     let foodTruck = await FoodTruck.findOne({ owner: userId });
-    
-          if (!foodTruck) {
-        // Create a new food truck if one doesn't exist
-        const user = await User.findById(userId);
-        foodTruck = new FoodTruck({
-          owner: userId,
+
+    // If no food truck exists, create a new one
+    if (!foodTruck) {
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      foodTruck = new FoodTruck({
+        owner: userId,
         name: user.businessName || 'My Food Truck',
-        businessName: user.businessName || 'My Food Truck',
-        phoneNumber: user.phoneNumber || '',
-        location: {
-          type: 'Point',
-          coordinates: [0, 0],
-          address: '',
-          city: '',
-          state: '',
-          source: 'manual',
-          confidence: 'low'
-        },
+        description: 'Welcome to my food truck!',
         cuisineType: 'American',
-        foodTypes: [],
-        businessHours: [],
-        menu: [],
-        isActive: false,
-        socialMedia: {
-          instagram: { autoTrack: false },
-          facebook: { autoTrack: false },
-          twitter: { autoTrack: false }
-        },
-        trackingPreferences: {
-          allowCustomerReports: true,
-          requireLocationVerification: false,
-          autoPostToSocial: false
-        }
+        isActive: false
       });
-              await foodTruck.save();
-        console.log('Created new food truck for owner:', userId);
+
+      await foodTruck.save();
+      console.log('Created new food truck for user:', userId);
     }
-    
+
     res.json(foodTruck);
   } catch (error) {
-    console.error('Get my truck error:', error);
-    res.status(500).json({ message: 'Error fetching food truck details', error: error.message });
+    console.error('Get food truck error:', error);
+    res.status(500).json({ message: 'Error fetching food truck' });
   }
 };
 
 // Create a new food truck
 exports.createFoodTruck = async (req, res) => {
   try {
-    const userId = req.user?.userId || req.user?._id;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const foodTruck = new FoodTruck({
       ...req.body,
       owner: userId
@@ -127,7 +114,10 @@ exports.getFoodTruck = async (req, res) => {
 // Update food truck details
 exports.updateFoodTruck = async (req, res) => {
   try {
-    const userId = req.user?.userId || req.user?._id;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const foodTruck = await FoodTruck.findOneAndUpdate(
       { _id: req.params.id, owner: userId },
       req.body,
@@ -148,7 +138,10 @@ exports.updateFoodTruck = async (req, res) => {
 // Delete food truck
 exports.deleteFoodTruck = async (req, res) => {
   try {
-    const userId = req.user?.userId || req.user?._id;
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
     const foodTruck = await FoodTruck.findOneAndDelete({
       _id: req.params.id,
       owner: userId
@@ -169,13 +162,12 @@ exports.deleteFoodTruck = async (req, res) => {
 exports.updateLocation = async (req, res) => {
   try {
     const { latitude, longitude, address, city, state, source, notes } = req.body;
-    const userId = req.user?.userId || req.user?._id;
-
-    console.log('updateLocation called with:', { latitude, longitude, userId, source });
-
+    const userId = req.user?.userId;
     if (!userId) {
       return res.status(401).json({ message: 'User not authenticated' });
     }
+
+    console.log('updateLocation called with:', { latitude, longitude, userId, source });
 
     // Validate inputs
     if (!latitude || !longitude) {
@@ -187,6 +179,9 @@ exports.updateLocation = async (req, res) => {
     if (!foodTruck) {
       // Create new food truck if one doesn't exist
       const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
       foodTruck = new FoodTruck({
         owner: userId,
         name: user.businessName || 'My Food Truck',
@@ -209,34 +204,34 @@ exports.updateLocation = async (req, res) => {
         menu: [],
         isActive: false
       });
-    } else {
-      // Save current location to history before updating
-      if (foodTruck.location && foodTruck.location.coordinates[0] !== 0 && foodTruck.location.coordinates[1] !== 0) {
-        foodTruck.locationHistory.push({
-          coordinates: foodTruck.location.coordinates,
-          address: foodTruck.location.address,
-          city: foodTruck.location.city,
-          state: foodTruck.location.state,
-          source: foodTruck.location.source,
-          confidence: foodTruck.location.confidence,
-          notes: foodTruck.location.notes,
-          timestamp: foodTruck.location.lastUpdated
-        });
-      }
-
-      // Update current location
-      foodTruck.location = {
-        type: 'Point',
-        coordinates: [longitude, latitude],
-        address: address || foodTruck.location.address || '',
-        city: city || foodTruck.location.city || '',
-        state: state || foodTruck.location.state || '',
-        source: source || 'owner',
-        confidence: 'high',
-        notes: notes || '',
-        lastUpdated: new Date()
-      };
     }
+
+    // Save current location to history before updating
+    if (foodTruck.location && foodTruck.location.coordinates[0] !== 0 && foodTruck.location.coordinates[1] !== 0) {
+      foodTruck.locationHistory.push({
+        coordinates: foodTruck.location.coordinates,
+        address: foodTruck.location.address,
+        city: foodTruck.location.city,
+        state: foodTruck.location.state,
+        source: foodTruck.location.source,
+        confidence: foodTruck.location.confidence,
+        notes: foodTruck.location.notes,
+        timestamp: foodTruck.location.lastUpdated
+      });
+    }
+
+    // Update current location
+    foodTruck.location = {
+      type: 'Point',
+      coordinates: [longitude, latitude],
+      address: address || foodTruck.location.address || '',
+      city: city || foodTruck.location.city || '',
+      state: state || foodTruck.location.state || '',
+      source: source || 'owner',
+      confidence: 'high',
+      notes: notes || '',
+      lastUpdated: new Date()
+    };
 
     await foodTruck.save({ validateModifiedOnly: true });
     console.log('Location updated successfully for user:', userId);

@@ -9,6 +9,8 @@ import {
   Alert,
   Link,
   CircularProgress,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { RestaurantMenu } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
@@ -20,6 +22,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isOwner, setIsOwner] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -31,14 +34,19 @@ const LoginPage = () => {
       const response = await axios.post(`${API_CONFIG.BASE_URL}/api/auth/login`, {
         email,
         password,
+        role: isOwner ? 'owner' : 'customer'
       });
 
-      const { token, role, _id } = response.data;
+      const { token, role, _id, name, businessName, preferences } = response.data;
       
       // Store user data in localStorage
       localStorage.setItem('token', token);
       localStorage.setItem('userRole', role);
       localStorage.setItem('userId', _id);
+      localStorage.setItem('userName', name || businessName);
+      if (preferences) {
+        localStorage.setItem('userPreferences', JSON.stringify(preferences));
+      }
 
       // Redirect based on role
       if (role === 'owner') {
@@ -54,43 +62,23 @@ const LoginPage = () => {
   };
 
   return (
-    <Container component="main" maxWidth="sm">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Paper
-          elevation={3}
-          sx={{
-            padding: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            width: '100%',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <RestaurantMenu sx={{ mr: 1, fontSize: 40, color: '#FF6B35' }} />
-            <Typography component="h1" variant="h4" sx={{ fontWeight: 600, color: '#FF6B35' }}>
-              FoodTruck Finder
+    <Container maxWidth="sm">
+      <Box sx={{ mt: 8, mb: 4 }}>
+        <Paper elevation={3} sx={{ p: 4 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+            <RestaurantMenu sx={{ fontSize: 40, color: 'primary.main', mb: 2 }} />
+            <Typography component="h1" variant="h5">
+              {isOwner ? 'Food Truck Owner Login' : 'Customer Login'}
             </Typography>
           </Box>
-          
-          <Typography component="h2" variant="h5" sx={{ mb: 3 }}>
-            Food Truck Owner Sign In
-          </Typography>
 
           {error && (
-            <Alert severity="error" sx={{ width: '100%', mb: 3 }}>
+            <Alert severity="error" sx={{ mb: 2 }}>
               {error}
             </Alert>
           )}
 
-          <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+          <form onSubmit={handleSubmit}>
             <TextField
               margin="normal"
               required
@@ -102,7 +90,6 @@ const LoginPage = () => {
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
             />
             <TextField
               margin="normal"
@@ -115,36 +102,33 @@ const LoginPage = () => {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={isOwner}
+                  onChange={(e) => setIsOwner(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="I am a food truck owner"
+              sx={{ mt: 1 }}
             />
             <Button
               type="submit"
               fullWidth
               variant="contained"
-              sx={{ mt: 3, mb: 2, py: 1.5 }}
+              sx={{ mt: 3, mb: 2 }}
               disabled={loading}
             >
               {loading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
-            
             <Box sx={{ textAlign: 'center' }}>
               <Link component={RouterLink} to="/register" variant="body2">
-                Don't have a food truck business account? Register Here
+                {"Don't have an account? Sign Up"}
               </Link>
             </Box>
-          </Box>
-
-          <Box sx={{ mt: 3, p: 2, backgroundColor: '#f5f5f5', borderRadius: 1, width: '100%' }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
-              Food Truck Owner Demo Account:
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Owner: owner@example.com / password123
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, fontStyle: 'italic' }}>
-              <strong>Customers:</strong> Use the "Login / Register" button on the main page to access your customer account.
-            </Typography>
-          </Box>
+          </form>
         </Paper>
       </Box>
     </Container>
