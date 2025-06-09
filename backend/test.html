@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Food Truck API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input { width: 100%; padding: 8px; margin-bottom: 10px; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        #response { margin-top: 20px; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Food Truck API Test</h1>
+
+    <h2>Register New User</h2>
+    <div class="form-group">
+        <label>Email:</label>
+        <input type="email" id="email" value="test@example.com">
+        <label>Password:</label>
+        <input type="password" id="password" value="password123">
+        <label>Name:</label>
+        <input type="text" id="name" value="Test User">
+        <label>Role:</label>
+        <select id="role">
+            <option value="owner">Food Truck Owner</option>
+            <option value="customer">Customer</option>
+        </select>
+        <button onclick="register()">Register</button>
+    </div>
+
+    <h2>Login</h2>
+    <div class="form-group">
+        <label>Email:</label>
+        <input type="email" id="loginEmail" value="test@example.com">
+        <label>Password:</label>
+        <input type="password" id="loginPassword" value="password123">
+        <button onclick="login()">Login</button>
+    </div>
+
+    <div id="response"></div>
+
+    <script>
+        function showResponse(data) {
+            document.getElementById('response').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        async function register() {
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value,
+                        name: document.getElementById('name').value,
+                        role: document.getElementById('role').value
+                    })
+                });
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        async function login() {
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: document.getElementById('loginEmail').value,
+                        password: document.getElementById('loginPassword').value
+                    })
+                });
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+    </script>
+</body>
+</html> 
