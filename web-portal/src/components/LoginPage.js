@@ -13,6 +13,7 @@ import {
 import { RestaurantMenu } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_CONFIG } from '../config/api';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -27,7 +28,7 @@ const LoginPage = () => {
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/login', {
+      const response = await axios.post(`${API_CONFIG.BASE_URL}/api/auth/login`, {
         email,
         password,
       });

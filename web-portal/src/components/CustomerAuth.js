@@ -22,6 +22,7 @@ import {
   Chip
 } from '@mui/material';
 import { Person, Email, Lock, Phone } from '@mui/icons-material';
+import { API_CONFIG } from '../config/api';
 
 // Login Form Component
 const LoginForm = React.memo(({ loginData, setLoginData }) => (
@@ -243,7 +244,7 @@ const CustomerAuth = ({ open, onClose, onAuthSuccess }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:3001/api/auth/login-customer', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/login-customer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -295,7 +296,7 @@ const CustomerAuth = ({ open, onClose, onAuthSuccess }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:3001/api/auth/register-customer', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/auth/register-customer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

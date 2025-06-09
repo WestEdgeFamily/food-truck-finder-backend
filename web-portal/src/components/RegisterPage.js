@@ -15,6 +15,7 @@ import {
 import { RestaurantMenu, Person, Business } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_CONFIG } from '../config/api';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -54,7 +55,7 @@ const RegisterPage = () => {
     }
 
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/register', {
+      const response = await axios.post(`${API_CONFIG.BASE_URL}/api/auth/register`, {
         email: formData.email,
         password: formData.password,
         businessName: formData.businessName,

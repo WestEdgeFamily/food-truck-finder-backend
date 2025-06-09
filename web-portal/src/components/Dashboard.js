@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { LocationOn, AccessTime, Restaurant } from '@mui/icons-material';
 import axios from 'axios';
+import { API_CONFIG } from '../config/api';
 
 const Dashboard = () => {
     const [foodTruck, setFoodTruck] = useState(null);
@@ -35,7 +36,7 @@ const Dashboard = () => {
                 return;
             }
             console.log('Fetching with token:', token); // Debug log
-            const response = await axios.get('http://localhost:3001/api/foodtrucks/my-truck', {
+            const response = await axios.get(`${API_CONFIG.BASE_URL}/api/foodtrucks/my-truck`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             console.log('Food truck data:', response.data); // Debug log
@@ -51,7 +52,7 @@ const Dashboard = () => {
     const handleUpdateLocation = async (location) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put('http://localhost:3001/api/foodtrucks/' + foodTruck._id + '/location', location, {
+            await axios.put(`${API_CONFIG.BASE_URL}/api/foodtrucks/` + foodTruck._id + '/location', location, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             fetchFoodTruckData();

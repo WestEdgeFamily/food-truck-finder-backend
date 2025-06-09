@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const FoodTruck = require('../models/FoodTruck');
 const jwt = require('jsonwebtoken');
 const config = require('../config/config');
 
@@ -40,13 +41,45 @@ const registerOwner = async (req, res) => {
         });
 
         if (user) {
+            // Create associated food truck record
+            const foodTruck = await FoodTruck.create({
+                owner: user._id,
+                name: businessName,
+                businessName: businessName,
+                phoneNumber: phoneNumber,
+                description: `Welcome to ${businessName}! We're excited to serve you delicious food from our food truck.`,
+                cuisineType: 'American', // Default cuisine type
+                location: {
+                    type: 'Point',
+                    coordinates: [0, 0], // Default coordinates, will be updated when owner sets location
+                    address: '',
+                    city: '',
+                    state: '',
+                    source: 'manual',
+                    confidence: 'medium'
+                },
+                isActive: false, // Starts inactive until owner configures
+                trackingPreferences: {
+                    allowCustomerReports: true,
+                    requireLocationVerification: false,
+                    autoPostToSocial: false,
+                    enableGpsTracking: false,
+                    gpsUpdateFrequency: 30,
+                    trackingAccuracy: 'medium',
+                    shareLocationWhileOpen: true
+                }
+            });
+
+            console.log('Created user and food truck:', { user: user._id, foodTruck: foodTruck._id });
+
             const token = generateToken(user);
             res.status(201).json({
                 _id: user._id,
                 email: user.email,
                 businessName: user.businessName,
                 role: user.role,
-                token
+                token,
+                foodTruckId: foodTruck._id
             });
         }
     } catch (error) {
