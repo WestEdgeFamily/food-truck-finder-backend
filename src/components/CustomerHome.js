@@ -61,6 +61,7 @@ import CustomerAuth from './CustomerAuth';
 import io from 'socket.io-client';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
+import { API_CONFIG } from '../config/api';
 
 const CustomerHome = () => {
   const [foodTrucks, setFoodTrucks] = useState([]);
@@ -117,7 +118,7 @@ const CustomerHome = () => {
 
   // Real-time WebSocket initialization
   const initializeWebSocket = () => {
-    const newSocket = io('http://localhost:3001');
+    const newSocket = io(API_CONFIG.WEBSOCKET_URL);
     
     newSocket.on('connect', () => {
       console.log('🔗 Connected to real-time server');
@@ -209,7 +210,7 @@ const CustomerHome = () => {
       const token = localStorage.getItem('customerToken');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3001/api/users/favorites', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/favorites`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -235,7 +236,7 @@ const CustomerHome = () => {
       
       if (isFavorited) {
         // Remove from favorites
-        const response = await fetch(`http://localhost:3001/api/users/favorites/${truckId}`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/favorites/${truckId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${token}` }
         });
@@ -249,7 +250,7 @@ const CustomerHome = () => {
         }
       } else {
         // Add to favorites
-        const response = await fetch(`http://localhost:3001/api/users/favorites/${truckId}`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/favorites/${truckId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -274,7 +275,7 @@ const CustomerHome = () => {
   const fetchFoodTrucks = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:3001/api/foodtrucks');
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/api/foodtrucks`);
       console.log('Fetched food trucks:', response.data);
       setFoodTrucks(response.data);
       setError(null);
@@ -331,7 +332,7 @@ const CustomerHome = () => {
       }
       
       console.log('Searching with params:', params);
-      const response = await axios.get('http://localhost:3001/api/foodtrucks/search', { params });
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/api/foodtrucks/search`, { params });
       console.log('Search response:', response.data);
       setFoodTrucks(response.data);
       setError(null);
@@ -367,7 +368,7 @@ const CustomerHome = () => {
 
   const handleViewHistory = async (truck) => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/foodtrucks/${truck._id}/location-history?limit=20`);
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/api/foodtrucks/${truck._id}/location-history?limit=20`);
       setLocationHistory(response.data);
       setSelectedTruck(truck);
       setHistoryDialogOpen(true);
@@ -395,7 +396,7 @@ const CustomerHome = () => {
       const demoLat = 40.7128 + (Math.random() - 0.5) * 0.1;
       const demoLng = -74.0060 + (Math.random() - 0.5) * 0.1;
 
-      await axios.post(`http://localhost:3001/api/foodtrucks/${reportingTruck._id}/report-location`, {
+      await axios.post(`${API_CONFIG.BASE_URL}/api/foodtrucks/${reportingTruck._id}/report-location`, {
         latitude: demoLat,
         longitude: demoLng,
         address: reportLocation,
