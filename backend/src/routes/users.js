@@ -13,7 +13,7 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/avatars/');
   },
   filename: function (req, file, cb) {
-    cb(null, `${req.user.id}-${Date.now()}${path.extname(file.originalname)}`);
+    cb(null, `${req.user._id}-${Date.now()}${path.extname(file.originalname)}`);
   }
 });
 
@@ -38,7 +38,7 @@ const upload = multer({
 // @access  Private
 router.get('/profile', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
+    const user = await User.findById(req.user._id)
       .populate('favorites.foodTrucks.truckId', 'name cuisineType location isActive averageRating')
       .select('-password');
     
@@ -61,7 +61,7 @@ router.put('/profile', protect, async (req, res) => {
       preferences
     } = req.body;
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
     
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -87,7 +87,7 @@ router.put('/profile', protect, async (req, res) => {
 
     await user.save();
     
-    const updatedUser = await User.findById(req.user.id)
+    const updatedUser = await User.findById(req.user._id)
       .populate('favorites.foodTrucks.truckId', 'name cuisineType location isActive averageRating')
       .select('-password');
     
@@ -110,7 +110,7 @@ router.post('/profile/avatar', protect, upload.single('avatar'), async (req, res
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
     user.avatar = `/uploads/avatars/${req.file.filename}`;
     await user.save();
 
@@ -129,7 +129,7 @@ router.post('/profile/avatar', protect, upload.single('avatar'), async (req, res
 // @access  Private
 router.get('/favorites', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
+    const user = await User.findById(req.user._id)
       .populate({
         path: 'favorites.foodTrucks.truckId',
         select: 'name description cuisineType location isActive averageRating menu businessHours images',
@@ -172,7 +172,7 @@ router.post('/favorites/:truckId', protect, async (req, res) => {
       return res.status(404).json({ message: 'Food truck not found' });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
     
     // Check if already favorited
     const alreadyFavorited = user.favorites.foodTrucks.find(
@@ -217,7 +217,7 @@ router.post('/favorites/:truckId', protect, async (req, res) => {
 router.delete('/favorites/:truckId', protect, async (req, res) => {
   try {
     const truckId = req.params.truckId;
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
 
     await user.removeFavorite(truckId);
 
@@ -233,7 +233,7 @@ router.delete('/favorites/:truckId', protect, async (req, res) => {
 // @access  Private
 router.get('/activity', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
+    const user = await User.findById(req.user._id)
       .populate('activity.trucksVisited.truckId', 'name cuisineType location')
       .select('activity preferences');
 
@@ -271,7 +271,7 @@ router.post('/activity/truck-visit', protect, async (req, res) => {
       return res.status(404).json({ message: 'Food truck not found' });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
 
     // Add visit to activity
     user.activity.trucksVisited.push({
@@ -301,7 +301,7 @@ router.post('/activity/search', protect, async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
 
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
 
     // Add search to history (keep last 50)
     user.activity.searchHistory.unshift({
@@ -327,7 +327,7 @@ router.post('/activity/search', protect, async (req, res) => {
 // @access  Private
 router.get('/recommendations', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
+    const user = await User.findById(req.user._id)
       .populate('favorites.foodTrucks.truckId', 'cuisineType');
 
     // Get user's favorite cuisine types
@@ -380,7 +380,7 @@ router.get('/recommendations', protect, async (req, res) => {
 // @access  Private
 router.delete('/account', protect, async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.user.id);
+    await User.findByIdAndDelete(req.user._id);
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);

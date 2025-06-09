@@ -126,7 +126,7 @@ const UserProfile = () => {
       const token = localStorage.getItem('customerToken');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3001/api/users/activity', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/activity`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -144,7 +144,7 @@ const UserProfile = () => {
       const token = localStorage.getItem('customerToken');
       if (!token) return;
 
-      const response = await fetch('http://localhost:3001/api/users/recommendations', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/recommendations`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -161,7 +161,7 @@ const UserProfile = () => {
     try {
       const token = localStorage.getItem('customerToken');
       
-      const response = await fetch('http://localhost:3001/api/users/profile', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -188,7 +188,7 @@ const UserProfile = () => {
     try {
       const token = localStorage.getItem('customerToken');
       
-      const response = await fetch(`http://localhost:3001/api/users/favorites/${truckId}`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/users/favorites/${truckId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
