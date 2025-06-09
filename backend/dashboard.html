@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Food Truck Owner Dashboard</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 1200px; 
+            margin: 20px auto; 
+            padding: 20px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .form-group { 
+            margin-bottom: 15px; 
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .form-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold;
+        }
+        input, select, textarea { 
+            width: 100%; 
+            padding: 8px; 
+            margin-bottom: 10px; 
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button { 
+            padding: 10px 20px; 
+            background: #4CAF50; 
+            color: white; 
+            border: none; 
+            cursor: pointer; 
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .checkin-btn {
+            background: #FF6B35;
+            font-size: 16px;
+            padding: 12px 24px;
+        }
+        .checkin-btn:hover {
+            background: #e55a2e;
+        }
+        #response { 
+            margin-top: 20px; 
+            padding: 10px; 
+            background: #f0f0f0; 
+        }
+        .hours-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .menu-item {
+            background: #f5f5f5;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .status-active {
+            color: green;
+            font-weight: bold;
+        }
+        .status-inactive {
+            color: red;
+            font-weight: bold;
+        }
+        .location-source {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .confidence-high { color: #4CAF50; }
+        .confidence-medium { color: #ff9800; }
+        .confidence-low { color: #f44336; }
+        .tracking-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .social-platform {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        .location-history {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .history-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 8px;
+        }
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        .gps-tracking {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .tracking-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .status-live { background: #4CAF50; }
+        .status-inactive { background: #999; }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .gps-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .gps-btn {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .gps-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .gps-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .location-accuracy {
+            font-size: 12px;
+            color: #ddd;
+            margin-top: 10px;
+        }
+        .realtime-updates {
+            background: #e8f5e8;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .update-log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Food Truck Owner Dashboard</h1>
+    <div id="loginSection">
+        <h2>Login</h2>
+        <div class="form-group">
+            <label>Email:</label>
+            <input type="email" id="loginEmail" value="test@example.com">
+            <label>Password:</label>
+            <input type="password" id="loginPassword" value="password123">
+            <button onclick="login()">Login</button>
+        </div>
+    </div>
+
+    <div id="dashboardSection" style="display: none;">
+        <!-- GPS Tracking Section -->
+        <div class="gps-tracking">
+            <h2>🛰️ Live GPS Tracking</h2>
+            <div class="tracking-status">
+                <div id="trackingIndicator" class="status-indicator status-inactive"></div>
+                <span id="trackingStatusText">GPS Tracking Inactive</span>
+            </div>
+            <div class="gps-controls">
+                <button id="startTrackingBtn" class="gps-btn" onclick="startGpsTracking()">
+                    📍 Start Live Tracking
+                </button>
+                <button id="stopTrackingBtn" class="gps-btn" onclick="stopGpsTracking()" disabled>
+                    🛑 Stop Tracking
+                </button>
+                <button class="gps-btn" onclick="sendLocationUpdate()">
+                    📲 Send Location Now
+                </button>
+                <button class="gps-btn" onclick="toggleAutoUpdate()">
+                    <span id="autoUpdateText">🔄 Enable Auto-Update</span>
+                </button>
+            </div>
+            <div class="location-accuracy" id="locationAccuracy">
+                Waiting for GPS signal...
+            </div>
+            <div class="realtime-updates" id="realtimeSection" style="display: none;">
+                <strong>Real-time Updates Active!</strong>
+                <div>Customers can see your location updates live</div>
+                <div class="update-log" id="updateLog"></div>
+            </div>
+        </div>
+
+        <div class="container">
+            <div class="form-section">
+                <h2>Basic Information</h2>
+                <div class="form-group">
+                    <label>Truck Name:</label>
+                    <input type="text" id="truckName">
+                    <label>Description:</label>
+                    <textarea id="description" rows="4"></textarea>
+                    <label>Cuisine Type:</label>
+                    <select id="cuisineType">
+                        <option value="American">American</option>
+                        <option value="Mexican">Mexican</option>
+                        <option value="Italian">Italian</option>
+                        <option value="Asian">Asian</option>
+                        <option value="BBQ">BBQ</option>
+                        <option value="Desserts">Desserts</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <button onclick="updateBasicInfo()">Update Information</button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Quick Check-In</h2>
+                <div class="form-group">
+                    <label>Current Location:</label>
+                    <input type="text" id="checkinLocation" placeholder="Enter address or use GPS">
+                    <label>Notes (optional):</label>
+                    <input type="text" id="checkinNotes" placeholder="Special notes about this location">
+                    <label>
+                        <input type="checkbox" id="autoPostSocial"> Auto-post to social media
+                    </label>
+                    <button class="checkin-btn" onclick="quickCheckIn()">Check In Here</button>
+                    <button onclick="useCurrentLocation()">Use GPS Location</button>
+                </div>
+                <div id="currentLocationInfo">
+                    <!-- Current location info will be populated here -->
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Social Media Tracking</h2>
+                <div class="form-group">
+                    <div class="tracking-grid">
+                        <div class="social-platform">
+                            <h4>Instagram</h4>
+                            <label>Username:</label>
+                            <input type="text" id="instagramUsername" placeholder="@yourusername">
+                            <label>
+                                <input type="checkbox" id="instagramAutoTrack"> Enable auto-tracking
+                            </label>
+                        </div>
+                        <div class="social-platform">
+                            <h4>Facebook</h4>
+                            <label>Page Name:</label>
+                            <input type="text" id="facebookPage" placeholder="Your page name">
+                            <label>
+                                <input type="checkbox" id="facebookAutoTrack"> Enable auto-tracking
+                            </label>
+                        </div>
+                    </div>
+                    <div class="social-platform" style="margin-top: 15px;">
+                        <h4>Twitter</h4>
+                        <label>Username:</label>
+                        <input type="text" id="twitterUsername" placeholder="@yourusername">
+                        <label>
+                            <input type="checkbox" id="twitterAutoTrack"> Enable auto-tracking
+                        </label>
+                    </div>
+                    <button onclick="updateSocialMedia()" style="margin-top: 15px;">Update Social Media Settings</button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Tracking Preferences</h2>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="allowCustomerReports"> Allow customer location reports
+                    </label>
+                    <label>
+                        <input type="checkbox" id="requireVerification"> Require verification for customer reports
+                    </label>
+                    <label>
+                        <input type="checkbox" id="autoPostToSocial"> Auto-post location updates to social media
+                    </label>
+                    <!-- GPS options commented out for future implementation -->
+                    <!--
+                    <h4>GPS Tracking (Coming Soon)</h4>
+                    <label>
+                        <input type="checkbox" id="enableGpsTracking" disabled> Enable GPS tracking
+                    </label>
+                    <label>Update frequency (seconds):</label>
+                    <input type="number" id="gpsUpdateFrequency" value="60" disabled>
+                    <label>
+                        <input type="checkbox" id="businessHoursOnly" disabled> Track only during business hours
+                    </label>
+                    -->
+                    <button onclick="updateTrackingPreferences()">Update Preferences</button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Operating Hours</h2>
+                <div class="form-group">
+                    <div id="businessHours">
+                        <!-- Days will be populated by JavaScript -->
+                    </div>
+                    <button onclick="updateHours()">Update Hours</button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Menu Items</h2>
+                <div class="form-group">
+                    <div id="menuItems">
+                        <label>Item Name:</label>
+                        <input type="text" id="itemName">
+                        <label>Description:</label>
+                        <input type="text" id="itemDescription">
+                        <label>Price:</label>
+                        <input type="number" id="itemPrice" step="0.01">
+                        <label>Category:</label>
+                        <select id="itemCategory">
+                            <option value="Appetizers">Appetizers</option>
+                            <option value="Main Course">Main Course</option>
+                            <option value="Sides">Sides</option>
+                            <option value="Desserts">Desserts</option>
+                            <option value="Drinks">Drinks</option>
+                            <option value="Specials">Specials</option>
+                        </select>
+                        <button onclick="addMenuItem()">Add Menu Item</button>
+                    </div>
+                    <div id="menuList"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Location History</h2>
+                <div class="form-group">
+                    <div id="locationHistory" class="location-history">
+                        <!-- Location history will be populated here -->
+                    </div>
+                    <button onclick="loadLocationHistory()">Refresh History</button>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Current Status</h2>
+                <div class="form-group">
+                    <label>Status:</label>
+                    <select id="status">
+                        <option value="true">Active (Open)</option>
+                        <option value="false">Inactive (Closed)</option>
+                    </select>
+                    <label>Manual Location Update:</label>
+                    <input type="text" id="location" placeholder="Enter address or click 'Use Current Location'">
+                    <button onclick="updateStatus()">Update Status</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="response"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let token = '';
+        let truckId = '';
+        let socket = null;
+        let watchId = null;
+        let autoUpdateInterval = null;
+        let isTracking = false;
+        let currentPosition = null;
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+        // Initialize business hours form
+        function initializeHoursForm() {
+            const hoursDiv = document.getElementById('businessHours');
+            days.forEach(day => {
+                hoursDiv.innerHTML += `
+                    <div class="hours-grid">
+                        <div>${day}</div>
+                        <input type="time" id="${day.toLowerCase()}_open">
+                        <input type="time" id="${day.toLowerCase()}_close">
+                    </div>
+                `;
+            });
+        }
+
+        function showResponse(data) {
+            document.getElementById('response').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+
+
+        async function loadTruckInfo() {
+            try {
+                const response = await fetch('http://localhost:3001/api/foodtrucks/my-truck', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                if (data._id) {
+                    truckId = data._id;
+                    // Populate form fields with existing data
+                    document.getElementById('truckName').value = data.name || '';
+                    document.getElementById('description').value = data.description || '';
+                    document.getElementById('cuisineType').value = data.cuisineType || 'American';
+                    document.getElementById('status').value = data.isActive.toString();
+                    
+                    // Populate business hours
+                    if (data.businessHours) {
+                        data.businessHours.forEach(hours => {
+                            const day = hours.day.toLowerCase();
+                            document.getElementById(`${day}_open`).value = hours.open;
+                            document.getElementById(`${day}_close`).value = hours.close;
+                        });
+                    }
+
+                    // Populate social media settings
+                    if (data.socialMedia) {
+                        document.getElementById('instagramUsername').value = data.socialMedia.instagram?.username || '';
+                        document.getElementById('instagramAutoTrack').checked = data.socialMedia.instagram?.autoTrack || false;
+                        document.getElementById('facebookPage').value = data.socialMedia.facebook?.pageName || '';
+                        document.getElementById('facebookAutoTrack').checked = data.socialMedia.facebook?.autoTrack || false;
+                        document.getElementById('twitterUsername').value = data.socialMedia.twitter?.username || '';
+                        document.getElementById('twitterAutoTrack').checked = data.socialMedia.twitter?.autoTrack || false;
+                    }
+
+                    // Populate tracking preferences
+                    if (data.trackingPreferences) {
+                        document.getElementById('allowCustomerReports').checked = data.trackingPreferences.allowCustomerReports;
+                        document.getElementById('requireVerification').checked = data.trackingPreferences.requireLocationVerification;
+                        document.getElementById('autoPostToSocial').checked = data.trackingPreferences.autoPostToSocial;
+                    }
+
+                    // Update current location info
+                    updateCurrentLocationDisplay(data.location);
+
+                    // Populate menu items
+                    updateMenuList(data.menu || []);
+
+                    // Load location history
+                    loadLocationHistory();
+                }
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        function updateCurrentLocationDisplay(location) {
+            const div = document.getElementById('currentLocationInfo');
+            if (location && location.coordinates && location.coordinates[0] !== 0) {
+                const confidenceClass = `confidence-${location.confidence || 'medium'}`;
+                const lastUpdated = location.lastUpdated ? new Date(location.lastUpdated).toLocaleString() : 'Unknown';
+                div.innerHTML = `
+                    <div style="margin-top: 15px; padding: 10px; background: #f0f8ff; border-radius: 4px;">
+                        <strong>Current Location:</strong><br>
+                        ${location.address || 'Address not set'}<br>
+                        ${location.city || ''}, ${location.state || ''}<br>
+                        <div class="location-source">
+                            Source: ${location.source || 'manual'} | 
+                            Confidence: <span class="${confidenceClass}">${location.confidence || 'medium'}</span><br>
+                            Last updated: ${lastUpdated}
+                            ${location.notes ? `<br>Notes: ${location.notes}` : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                div.innerHTML = '<div style="margin-top: 15px; color: #666;">No location set</div>';
+            }
+        }
+
+        async function quickCheckIn() {
+            const location = document.getElementById('checkinLocation').value;
+            const notes = document.getElementById('checkinNotes').value;
+            const autoPost = document.getElementById('autoPostSocial').checked;
+
+            if (!location) {
+                alert('Please enter a location or use GPS');
+                return;
+            }
+
+            try {
+                // For demo purposes, we'll use a simple geocoding simulation
+                // In production, you'd use a real geocoding service
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/my-truck/checkin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        latitude: 40.7128 + (Math.random() - 0.5) * 0.1, // Demo coordinates near NYC
+                        longitude: -74.0060 + (Math.random() - 0.5) * 0.1,
+                        address: location,
+                        city: 'Demo City',
+                        state: 'NY',
+                        notes: notes,
+                        autoPostToSocial: autoPost
+                    })
+                });
+                const data = await response.json();
+                showResponse(data);
+                loadTruckInfo(); // Refresh data
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        async function updateSocialMedia() {
+            try {
+                const socialMediaData = {
+                    instagram: {
+                        username: document.getElementById('instagramUsername').value,
+                        autoTrack: document.getElementById('instagramAutoTrack').checked
+                    },
+                    facebook: {
+                        pageName: document.getElementById('facebookPage').value,
+                        autoTrack: document.getElementById('facebookAutoTrack').checked
+                    },
+                    twitter: {
+                        username: document.getElementById('twitterUsername').value,
+                        autoTrack: document.getElementById('twitterAutoTrack').checked
+                    }
+                };
+
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/my-truck/social-media`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(socialMediaData)
+                });
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        async function updateTrackingPreferences() {
+            try {
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        trackingPreferences: {
+                            allowCustomerReports: document.getElementById('allowCustomerReports').checked,
+                            requireLocationVerification: document.getElementById('requireVerification').checked,
+                            autoPostToSocial: document.getElementById('autoPostToSocial').checked
+                        }
+                    })
+                });
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        async function loadLocationHistory() {
+            try {
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}/location-history?limit=10`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                
+                const historyDiv = document.getElementById('locationHistory');
+                if (data.history && data.history.length > 0) {
+                    historyDiv.innerHTML = data.history.map(item => {
+                        const timestamp = new Date(item.timestamp).toLocaleString();
+                        const confidenceClass = `confidence-${item.confidence || 'medium'}`;
+                        return `
+                            <div class="history-item">
+                                <strong>${item.address || 'Unknown address'}</strong><br>
+                                ${item.city || ''}, ${item.state || ''}<br>
+                                <small>
+                                    Source: ${item.source || 'unknown'} | 
+                                    <span class="${confidenceClass}">Confidence: ${item.confidence || 'medium'}</span><br>
+                                    ${timestamp}
+                                    ${item.notes ? `<br>Notes: ${item.notes}` : ''}
+                                </small>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    historyDiv.innerHTML = '<div style="color: #666;">No location history available</div>';
+                }
+            } catch (error) {
+                console.error('Error loading location history:', error);
+            }
+        }
+
+        async function updateBasicInfo() {
+            try {
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        name: document.getElementById('truckName').value,
+                        description: document.getElementById('description').value,
+                        cuisineType: document.getElementById('cuisineType').value
+                    })
+                });
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        async function updateHours() {
+            const hours = days.map(day => ({
+                day,
+                open: document.getElementById(`${day.toLowerCase()}_open`).value,
+                close: document.getElementById(`${day.toLowerCase()}_close`).value
+            }));
+
+            try {
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        businessHours: hours
+                    })
+                });
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        async function addMenuItem() {
+            const menuItem = {
+                name: document.getElementById('itemName').value,
+                description: document.getElementById('itemDescription').value,
+                price: parseFloat(document.getElementById('itemPrice').value),
+                category: document.getElementById('itemCategory').value
+            };
+
+            try {
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}/menu`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(menuItem)
+                });
+                const data = await response.json();
+                showResponse(data);
+                loadTruckInfo(); // Refresh menu list
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        function updateMenuList(menu) {
+            const menuList = document.getElementById('menuList');
+            menuList.innerHTML = menu.map(item => `
+                <div class="menu-item">
+                    <h4>${item.name} - $${item.price}</h4>
+                    <p>${item.description}</p>
+                    <small>${item.category}</small>
+                    <button onclick="deleteMenuItem('${item._id}')">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteMenuItem(itemId) {
+            try {
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}/menu/${itemId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const data = await response.json();
+                showResponse(data);
+                loadTruckInfo(); // Refresh menu list
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        async function updateStatus() {
+            try {
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        isActive: document.getElementById('status').value === 'true'
+                    })
+                });
+                const data = await response.json();
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        function useCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    try {
+                        const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}/location`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude,
+                                source: 'gps',
+                                notes: 'GPS location from browser'
+                            })
+                        });
+                        const data = await response.json();
+                        showResponse(data);
+                        loadTruckInfo(); // Refresh location display
+                    } catch (error) {
+                        showResponse({ error: error.message });
+                    }
+                });
+            } else {
+                showResponse({ error: "Geolocation is not supported by this browser." });
+            }
+        }
+
+        // GPS Tracking Functions
+        function initializeWebSocket() {
+            socket = io('http://localhost:3001');
+            
+            socket.on('connect', () => {
+                console.log('🔗 Connected to WebSocket server');
+                // Join as truck owner
+                socket.emit('join', {
+                    userType: 'owner',
+                    userId: 'current_user',
+                    truckId: truckId
+                });
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from WebSocket server');
+            });
+        }
+
+        async function startGpsTracking() {
+            try {
+                // Start tracking session on server
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}/start-tracking`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) throw new Error('Failed to start tracking');
+                
+                // Start GPS watching
+                if (navigator.geolocation) {
+                    const options = {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    };
+                    
+                    watchId = navigator.geolocation.watchPosition(
+                        handleLocationUpdate,
+                        handleLocationError,
+                        options
+                    );
+                    
+                    isTracking = true;
+                    updateTrackingUI();
+                    addUpdateLog('🛰️ GPS tracking started');
+                } else {
+                    throw new Error('Geolocation not supported');
+                }
+            } catch (error) {
+                console.error('Error starting GPS tracking:', error);
+                addUpdateLog('❌ Failed to start tracking: ' + error.message);
+            }
+        }
+
+        async function stopGpsTracking() {
+            try {
+                // Stop tracking session on server
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}/stop-tracking`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                // Stop GPS watching
+                if (watchId) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                }
+                
+                // Stop auto updates
+                if (autoUpdateInterval) {
+                    clearInterval(autoUpdateInterval);
+                    autoUpdateInterval = null;
+                }
+                
+                isTracking = false;
+                updateTrackingUI();
+                addUpdateLog('🛑 GPS tracking stopped');
+            } catch (error) {
+                console.error('Error stopping GPS tracking:', error);
+                addUpdateLog('❌ Failed to stop tracking: ' + error.message);
+            }
+        }
+
+        function handleLocationUpdate(position) {
+            currentPosition = position;
+            
+            const accuracy = position.coords.accuracy;
+            const speed = position.coords.speed || 0;
+            const heading = position.coords.heading || 0;
+            
+            // Update accuracy display
+            document.getElementById('locationAccuracy').textContent = 
+                `GPS Accuracy: ${accuracy.toFixed(1)}m | Speed: ${(speed * 3.6).toFixed(1)} km/h`;
+            
+            // Send live update
+            sendLocationUpdate();
+            
+            addUpdateLog(`📍 Location updated (±${accuracy.toFixed(1)}m)`);
+        }
+
+        function handleLocationError(error) {
+            console.error('GPS Error:', error);
+            let message = '';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = "Location access denied by user";
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = "Location information unavailable";
+                    break;
+                case error.TIMEOUT:
+                    message = "Location request timeout";
+                    break;
+                default:
+                    message = "Unknown GPS error";
+                    break;
+            }
+            addUpdateLog('❌ GPS Error: ' + message);
+        }
+
+        async function sendLocationUpdate() {
+            if (!currentPosition) {
+                // Get current position first
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    currentPosition = position;
+                    await performLocationUpdate();
+                }, handleLocationError);
+            } else {
+                await performLocationUpdate();
+            }
+        }
+
+        async function performLocationUpdate() {
+            try {
+                const pos = currentPosition.coords;
+                
+                const locationData = {
+                    latitude: pos.latitude,
+                    longitude: pos.longitude,
+                    accuracy: pos.accuracy,
+                    heading: pos.heading,
+                    speed: pos.speed,
+                    notes: `Live GPS update - accuracy: ${pos.accuracy?.toFixed(1)}m`
+                };
+                
+                // Send to API
+                const response = await fetch(`http://localhost:3001/api/foodtrucks/${truckId}/live-location`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(locationData)
+                });
+                
+                if (response.ok) {
+                    // Send real-time update via WebSocket
+                    if (socket) {
+                        socket.emit('location_update', {
+                            truckId: truckId,
+                            location: {
+                                coordinates: [pos.longitude, pos.latitude],
+                                accuracy: pos.accuracy,
+                                heading: pos.heading,
+                                speed: pos.speed,
+                                lastUpdated: new Date()
+                            }
+                        });
+                    }
+                    
+                    addUpdateLog('✅ Location sent to customers');
+                } else {
+                    throw new Error('Failed to update location');
+                }
+            } catch (error) {
+                console.error('Error sending location update:', error);
+                addUpdateLog('❌ Failed to send location: ' + error.message);
+            }
+        }
+
+        function toggleAutoUpdate() {
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+                document.getElementById('autoUpdateText').textContent = '🔄 Enable Auto-Update';
+                addUpdateLog('🔄 Auto-update disabled');
+            } else {
+                autoUpdateInterval = setInterval(() => {
+                    if (isTracking && currentPosition) {
+                        sendLocationUpdate();
+                    }
+                }, 30000); // Update every 30 seconds
+                document.getElementById('autoUpdateText').textContent = '⏸️ Disable Auto-Update';
+                addUpdateLog('🔄 Auto-update enabled (30s intervals)');
+            }
+        }
+
+        function updateTrackingUI() {
+            const indicator = document.getElementById('trackingIndicator');
+            const statusText = document.getElementById('trackingStatusText');
+            const startBtn = document.getElementById('startTrackingBtn');
+            const stopBtn = document.getElementById('stopTrackingBtn');
+            const realtimeSection = document.getElementById('realtimeSection');
+            
+            if (isTracking) {
+                indicator.className = 'status-indicator status-live';
+                statusText.textContent = 'GPS Tracking Active - Broadcasting Live Location';
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                realtimeSection.style.display = 'block';
+            } else {
+                indicator.className = 'status-indicator status-inactive';
+                statusText.textContent = 'GPS Tracking Inactive';
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                realtimeSection.style.display = 'none';
+            }
+        }
+
+        function addUpdateLog(message) {
+            const log = document.getElementById('updateLog');
+            const timestamp = new Date().toLocaleTimeString();
+            log.innerHTML += `[${timestamp}] ${message}\n`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Enhanced login function to initialize WebSocket
+        async function login() {
+            try {
+                const response = await fetch('http://localhost:3001/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: document.getElementById('loginEmail').value,
+                        password: document.getElementById('loginPassword').value
+                    })
+                });
+                const data = await response.json();
+                if (data.token) {
+                    token = data.token;
+                    document.getElementById('loginSection').style.display = 'none';
+                    document.getElementById('dashboardSection').style.display = 'block';
+                    await loadTruckInfo();
+                    initializeWebSocket();
+                }
+                showResponse(data);
+            } catch (error) {
+                showResponse({ error: error.message });
+            }
+        }
+
+        // Initialize the hours form when the page loads
+        initializeHoursForm();
+    </script>
+</body>
+</html> 

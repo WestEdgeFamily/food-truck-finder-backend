@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Food Truck App - Welcome</title>
+    <style>
+        :root {
+            --primary-color: #0984e3;
+            --secondary-color: #00b894;
+            --background-color: #1e272e;
+            --card-background: #2d3436;
+            --text-color: #dfe6e9;
+            --border-radius: 10px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .welcome-section {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            color: var(--text-color);
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        .description {
+            color: var(--text-color);
+            opacity: 0.8;
+            font-size: 1.2em;
+            margin-bottom: 40px;
+            max-width: 600px;
+            line-height: 1.6;
+        }
+
+        .portal-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .portal-button {
+            padding: 20px 40px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 250px;
+            background-color: var(--card-background);
+            color: var(--text-color);
+            box-shadow: var(--shadow);
+        }
+
+        .portal-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+        }
+
+        .owner-button {
+            border-left: 4px solid var(--secondary-color);
+        }
+
+        .user-button {
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .button-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .button-description {
+            font-size: 0.8em;
+            margin-top: 10px;
+            opacity: 0.7;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            background-color: var(--card-background);
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="welcome-section">
+            <h1>Welcome to Food Truck Finder</h1>
+            <p class="description">
+                Connect with local food trucks in your area. Whether you're a food truck owner or a food enthusiast,
+                we've got you covered. Choose your portal below to get started.
+            </p>
+        </div>
+
+        <div class="portal-buttons">
+            <a href="/owner-dashboard" class="portal-button owner-button">
+                <div class="button-icon">🚚</div>
+                Food Truck Owner Portal
+                <div class="button-description">
+                    Manage your food truck, update location, and connect with customers
+                </div>
+            </a>
+
+            <a href="/user-dashboard" class="portal-button user-button">
+                <div class="button-icon">🍽️</div>
+                Customer Portal
+                <div class="button-description">
+                    Find food trucks, view menus, and discover new favorites
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2024 Food Truck Finder. All rights reserved.</p>
+    </footer>
+</body>
+</html> 
