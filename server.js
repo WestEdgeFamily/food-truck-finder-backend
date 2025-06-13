@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
 // Middleware
 app.use(cors());
@@ -266,9 +266,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚚 Food Truck API Server running on port ${PORT}`);
-  console.log(`📍 Health check available at /api/health`);
+app.listen(PORT, () => {
+  console.log(`🚚 Food Truck API Server running on http://localhost:${PORT}`);
+  console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🍔 Food trucks: ${foodTrucks.length} loaded`);
   console.log(`👥 Users: ${users.length} loaded`);
 });
