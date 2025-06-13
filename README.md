@@ -1,6 +1,10 @@
-# Food Truck Finder Backend API
+## Features
 
-A Node.js/Express backend for the Food Truck Finder Mobile App.
+- ✅ User authentication (login/register)
+- ✅ Food truck listings with 5 pre-loaded trucks
+- ✅ Search and filtering
+- ✅ Location-based queries
+- ✅ CORS enabled for cross-origin requests
 
 ## Quick Start
 
@@ -8,10 +12,29 @@ A Node.js/Express backend for the Food Truck Finder Mobile App.
 npm install
 npm start
 ```
-```
-- Save as: `C:\FoodTruckApp\backend\README.md`
 
-### **2. Upload to GitHub:**
-Now you can upload these 3 files to your `food-truck-finder-backend` repository and the deployment should work!
+The server will run on port 5000 (or PORT environment variable).
 
-**This manual approach will definitely work! 💪**
+## API Endpoints
+
+- `GET /api/health` - Health check
+- `GET /api/trucks` - Get all food trucks
+- `GET /api/trucks/:id` - Get specific truck
+- `GET /api/trucks/search?q=query` - Search trucks
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
+
+## Test Accounts
+
+- **Customer**: `john@customer.com` / `password123`
+- **Owner**: `mike@tacos.com` / `password123`
+
+## Deploy to Render
+
+1. Push this code to GitHub
+2. Connect to Render.com
+3. Set build command: `npm install`
+4. Set start command: `npm start`
+5. Deploy!
+
+## Environment Variables
