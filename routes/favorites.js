@@ -3,70 +3,6 @@ const router = express.Router();
 const User = require('../models/User');
 const FoodTruck = require('../models/FoodTruck');
 
-// Helper function to find or create user with fallback logic
-async function findOrCreateUser(userId) {
-  console.log(`[FAVORITES] Looking up user with ID: ${userId}`);
-  
-  try {
-    // First, try to find user by customUserId
-    let user = await User.findOne({ customUserId: userId });
-    
-    if (user) {
-      console.log(`[FAVORITES] Found user by customUserId: ${user.customUserId}`);
-      return user;
-    }
-    
-    console.log(`[FAVORITES] No user found with customUserId: ${userId}`);
-    
-    // Fallback: Check if this looks like an existing user without customUserId
-    // Look for users without customUserId field and see if we can match by other criteria
-    const usersWithoutCustomId = await User.find({ 
-      $or: [
-        { customUserId: { $exists: false } },
-        { customUserId: null },
-        { customUserId: '' }
-      ]
-    });
-    
-    if (usersWithoutCustomId.length > 0) {
-      console.log(`[FAVORITES] Found ${usersWithoutCustomId.length} users without customUserId`);
-      
-      // For now, we'll take the first user without customUserId and assign this customUserId to them
-      // In a real app, you might want more sophisticated matching logic
-      const existingUser = usersWithoutCustomId[0];
-      existingUser.customUserId = userId;
-      
-      // Initialize favorites array if it doesn't exist
-      if (!existingUser.favorites) {
-        existingUser.favorites = [];
-      }
-      
-      await existingUser.save();
-      console.log(`[FAVORITES] Updated existing user ${existingUser._id} with customUserId: ${userId}`);
-      return existingUser;
-    }
-    
-    // If no existing users to update, create a new user
-    console.log(`[FAVORITES] Creating new user with customUserId: ${userId}`);
-    user = new User({
-      customUserId: userId,
-      favorites: [],
-      // Add default fields that might be required
-      email: `${userId}@placeholder.com`, // Placeholder email
-      name: `User ${userId}`,
-      createdAt: new Date()
-    });
-    
-    await user.save();
-    console.log(`[FAVORITES] Created new user: ${user._id} with customUserId: ${userId}`);
-    return user;
-    
-  } catch (error) {
-    console.error(`[FAVORITES] Error in findOrCreateUser for ${userId}:`, error);
-    throw error;
-  }
-}
-
 // Check if favorites feature is available
 router.get('/check', async (req, res) => {
   console.log('[FAVORITES] Checking favorites feature availability');
@@ -92,16 +28,26 @@ router.get('/:userId', async (req, res) => {
   console.log(`[FAVORITES] Getting favorites for user: ${userId}`);
   
   try {
-    const user = await findOrCreateUser(userId);
+    // Try to find user by customUserId first
+    let user = await User.findOne({ customUserId: userId });
+    
+    if (!user) {
+      console.log(`[FAVORITES] No user found with customUserId: ${userId}, creating new user`);
+      // Create new user if not found
+      user = new User({
+        customUserId: userId,
+        favorites: [],
+        email: `${userId}@placeholder.com`,
+        name: `User ${userId}`,
+        createdAt: new Date()
+      });
+      await user.save();
+      console.log(`[FAVORITES] Created new user: ${user._id}`);
+    }
     
     // Populate the favorites with actual food truck data
     const populatedUser = await User.findOne({ customUserId: userId })
       .populate('favorites', 'name description cuisine location rating imageUrl');
-    
-    if (!populatedUser) {
-      console.log(`[FAVORITES] User not found after creation: ${userId}`);
-      return res.status(404).json({ error: 'User not found' });
-    }
     
     const favorites = populatedUser.favorites || [];
     console.log(`[FAVORITES] Found ${favorites.length} favorites for user ${userId}`);
@@ -136,7 +82,18 @@ router.post('/:userId/:truckId', async (req, res) => {
       return res.status(404).json({ error: 'Food truck not found' });
     }
     
-    const user = await findOrCreateUser(userId);
+    // Find or create user
+    let user = await User.findOne({ customUserId: userId });
+    if (!user) {
+      user = new User({
+        customUserId: userId,
+        favorites: [],
+        email: `${userId}@placeholder.com`,
+        name: `User ${userId}`,
+        createdAt: new Date()
+      });
+      await user.save();
+    }
     
     // Check if already in favorites
     if (user.favorites.includes(truckId)) {
@@ -179,7 +136,11 @@ router.delete('/:userId/:truckId', async (req, res) => {
   console.log(`[FAVORITES] Removing truck ${truckId} from favorites for user ${userId}`);
   
   try {
-    const user = await findOrCreateUser(userId);
+    // Find user
+    const user = await User.findOne({ customUserId: userId });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     
     // Check if in favorites
     const truckIndex = user.favorites.indexOf(truckId);
@@ -223,7 +184,16 @@ router.get('/:userId/check/:truckId', async (req, res) => {
   console.log(`[FAVORITES] Checking if truck ${truckId} is favorited by user ${userId}`);
   
   try {
-    const user = await findOrCreateUser(userId);
+    // Find user
+    const user = await User.findOne({ customUserId: userId });
+    if (!user) {
+      return res.json({ 
+        isFavorited: false,
+        truckId: truckId,
+        userId: userId,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     const isFavorited = user.favorites.includes(truckId);
     console.log(`[FAVORITES] Truck ${truckId} is ${isFavorited ? 'favorited' : 'not favorited'} by user ${userId}`);
