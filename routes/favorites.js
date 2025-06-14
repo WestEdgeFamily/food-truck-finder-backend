@@ -106,7 +106,7 @@ router.get('/:userId/favorites/check/:truckId', async (req, res) => {
     const { userId, truckId } = req.params;
     console.log(`Checking if truck ${truckId} is favorited by user ${userId}`);
     
-    const user = await User.findById(userId);
+    const user = await User.findOne({ customUserId: userId });
     if (!user) {
       console.log(`User not found: ${userId}`);
       return res.status(404).json({ error: 'User not found' });
