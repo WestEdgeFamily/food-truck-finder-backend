@@ -7,7 +7,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use('/api/users', favoritesRoutes);
+app.use('/api/users/favorites', favoritesRoutes);
 
 // Mock database
 let users = [
