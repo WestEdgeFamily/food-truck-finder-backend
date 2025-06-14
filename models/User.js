@@ -3,9 +3,12 @@ const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
    customUserId: {
-    type: String,
-    unique: true,
-    required: true
+    customUserId: {
+     type: String,
+     unique: true,
+     sparse: true,
+     trim: true
+},
   },
   email: {
     type: String,
