@@ -47,7 +47,7 @@ router.get('/:userId', async (req, res) => {
     
     // Populate the favorites with actual food truck data
     const populatedUser = await User.findOne({ customUserId: userId })
-      .populate('favorites', 'name description cuisine location rating imageUrl');
+      .populate('favorites', 'name description cuisineType location rating businessName');
     
     const favorites = populatedUser.favorites || [];
     console.log(`[FAVORITES] Found ${favorites.length} favorites for user ${userId}`);
