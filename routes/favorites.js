@@ -15,7 +15,7 @@ router.get('/:userId/favorites', async (req, res) => {
     console.log(`Getting favorites for user: ${userId}`);
     
     // Find user by ID
-    const user = await User.findById(userId);
+    const user = await User.findOne({ customUserId: userId });
     if (!user) {
       console.log(`User not found: ${userId}`);
       return res.status(404).json({ error: 'User not found' });
