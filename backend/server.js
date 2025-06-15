@@ -36,6 +36,7 @@ let foodTrucks = [
     description: 'Authentic Mexican street tacos with premium ingredients',
     ownerId: 'owner1',
     cuisineTypes: ['Mexican', 'Street Food'],
+    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=800&h=600&fit=crop',
     location: {
       latitude: 40.7589,
       longitude: -73.9851,
@@ -56,6 +57,7 @@ let foodTrucks = [
     description: 'Artisanal burgers made with locally sourced beef',
     ownerId: 'owner2',
     cuisineTypes: ['American', 'Burgers'],
+    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&h=600&fit=crop',
     location: {
       latitude: 40.7505,
       longitude: -73.9934,
@@ -76,6 +78,7 @@ let foodTrucks = [
     description: 'Wood-fired Neapolitan pizza made to order',
     ownerId: 'owner3',
     cuisineTypes: ['Italian', 'Pizza'],
+    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800&h=600&fit=crop',
     location: {
       latitude: 40.7614,
       longitude: -73.9776,
@@ -96,6 +99,7 @@ let foodTrucks = [
     description: 'Traditional Korean BBQ and fusion dishes',
     ownerId: 'owner4',
     cuisineTypes: ['Korean', 'BBQ', 'Asian'],
+    image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&h=600&fit=crop',
     location: {
       latitude: 40.7480,
       longitude: -73.9857,
@@ -116,6 +120,7 @@ let foodTrucks = [
     description: 'Gourmet desserts, ice cream, and sweet treats',
     ownerId: 'owner5',
     cuisineTypes: ['Desserts', 'Ice Cream', 'Sweets'],
+    image: 'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=800&h=600&fit=crop',
     location: {
       latitude: 40.7530,
       longitude: -73.9900,
@@ -283,6 +288,38 @@ app.post('/api/trucks', (req, res) => {
   
   foodTrucks.push(newTruck);
   res.json({ success: true, truck: newTruck });
+});
+
+// Update food truck cover photo
+app.put('/api/trucks/:id/cover-photo', (req, res) => {
+  const { id } = req.params;
+  const { imageUrl } = req.body;
+  
+  console.log(`Updating cover photo for truck ${id} with URL: ${imageUrl}`);
+  
+  const truckIndex = foodTrucks.findIndex(t => t._id === id);
+  
+  if (truckIndex !== -1) {
+    foodTrucks[truckIndex].image = imageUrl;
+    foodTrucks[truckIndex].lastUpdated = new Date().toISOString();
+    console.log(`Successfully updated cover photo for truck ${id}`);
+    res.json({ success: true, message: 'Cover photo updated', truck: foodTrucks[truckIndex] });
+  } else {
+    console.log(`Truck ${id} not found`);
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// Get food truck cover photo
+app.get('/api/trucks/:id/cover-photo', (req, res) => {
+  const { id } = req.params;
+  const truck = foodTrucks.find(t => t._id === id);
+  
+  if (truck) {
+    res.json({ imageUrl: truck.image || null });
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
 });
 
 // ===== FAVORITES ROUTES =====
