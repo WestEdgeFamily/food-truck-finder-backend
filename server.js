@@ -7,27 +7,6 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Mock database - In-memory storage
-let users = [
-  {
-    _id: 'user1',
-    name: 'John Customer',
-    email: 'john@customer.com',
-    password: 'password123',
-    role: 'customer',
-    phone: '(555) 123-4567'
-  },
-  {
-    _id: 'owner1',
-    name: 'Mike Rodriguez',
-    email: 'mike@tacos.com',
-    password: 'password123',
-    role: 'owner',
-    phone: '(555) 987-6543',
-    businessName: 'Mike\'s Tacos'
-  }
-];
-
 let foodTrucks = [
   {
     _id: '1',
