@@ -1,0 +1,52 @@
+FOOD TRUCK FINDER APP - FINAL RELEASE SIGNING INFORMATION
+=========================================================
+
+FILE: food-truck-finder-v1.1.0-FINAL.aab
+SIZE: 39,400,184 bytes (39.4 MB)
+BUILD DATE: June 10, 2025 - 11:47 PM
+PROJECT: food_truck_clean (Clean Flutter project with proper Android configuration)
+
+SIGNING CONFIGURATION:
+- Keystore File: food-truck-keystore.jks
+- Key Alias: foodtruck
+- Store Password: foodtruck123
+- Key Password: foodtruck123
+- Validity: 10,000 days
+
+KEYSTORE CERTIFICATE DETAILS:
+- Algorithm: RSA (2048-bit)
+- Subject: CN=cody_vincent, OU=west_edge_designs, O=apocaltips, L=cheyenne, ST=wyoming, C=US
+- SHA1 Fingerprint: [Generated from release keystore]
+- SHA256 Fingerprint: [Generated from release keystore]
+
+APP CONFIGURATION:
+- Application ID: com.foodtruckfinder.food_truck_finder
+- Version Name: 1.1.0
+- Version Code: 2
+- Min SDK: 21
+- Target SDK: 34
+- Compile SDK: 34
+
+BACKEND INTEGRATION:
+- API Endpoint: https://food-truck-finder-api.onrender.com/api
+- Health Check: Working ✅
+- Food Trucks: 5 loaded ✅
+- Authentication: Working ✅
+
+BUILD PROCESS:
+1. Created clean Flutter project with proper Android configuration
+2. Added http dependency for API communication
+3. Configured release signing with keystore
+4. Built with: flutter build appbundle --release
+5. Successfully signed with release certificate
+
+GOOGLE PLAY CONSOLE:
+- This AAB is properly signed for Google Play Console upload
+- Uses release signing configuration
+- Ready for production deployment
+
+NOTES:
+- This replaces all previous AAB versions
+- Successfully resolves the "debug mode signing" error
+- Built with Flutter SDK latest stable version
+- Uses proper Android Gradle Plugin configuration 
