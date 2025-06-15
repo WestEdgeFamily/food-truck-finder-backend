@@ -1,15 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-const favoritesRoutes = require('./routes/favorites');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use('/api/users/favorites', favoritesRoutes);
 
-// Mock database
+// Mock database - In-memory storage
 let users = [
   {
     _id: 'user1',
@@ -132,6 +130,37 @@ let foodTrucks = [
     lastUpdated: new Date().toISOString()
   }
 ];
+
+// Favorites system - In-memory storage
+const userFavorites = {}; // userId -> [truckId, truckId, ...]
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Food Truck Finder API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      trucks: '/api/trucks',
+      auth: '/api/auth/login',
+      favorites: '/api/users/:userId/favorites'
+    }
+  });
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Food Truck API is running',
+    trucks: foodTrucks.length,
+    users: users.length,
+    favorites: Object.keys(userFavorites).length,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 // Auth Routes
 app.post('/api/auth/login', (req, res) => {
@@ -256,15 +285,68 @@ app.post('/api/trucks', (req, res) => {
   res.json({ success: true, truck: newTruck });
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Food Truck API is running',
-    trucks: foodTrucks.length,
-    users: users.length,
-    timestamp: new Date().toISOString()
-  });
+// ===== FAVORITES ROUTES =====
+// Get user's favorite food trucks
+app.get('/api/users/:userId/favorites', (req, res) => {
+  const { userId } = req.params;
+  console.log(`Getting favorites for user: ${userId}`);
+  
+  const favoriteIds = userFavorites[userId] || [];
+  const favoriteTrucks = foodTrucks.filter(truck => favoriteIds.includes(truck._id));
+  
+  console.log(`Found ${favoriteTrucks.length} favorites for user ${userId}`);
+  res.json(favoriteTrucks);
+});
+
+// Add food truck to favorites
+app.post('/api/users/:userId/favorites/:truckId', (req, res) => {
+  const { userId, truckId } = req.params;
+  console.log(`Adding truck ${truckId} to favorites for user ${userId}`);
+  
+  if (!userFavorites[userId]) {
+    userFavorites[userId] = [];
+  }
+  
+  if (!userFavorites[userId].includes(truckId)) {
+    userFavorites[userId].push(truckId);
+    console.log(`Successfully added truck ${truckId} to favorites`);
+  } else {
+    console.log(`Truck ${truckId} already in favorites`);
+  }
+  
+  res.json({ success: true, message: 'Food truck added to favorites' });
+});
+
+// Remove food truck from favorites
+app.delete('/api/users/:userId/favorites/:truckId', (req, res) => {
+  const { userId, truckId } = req.params;
+  console.log(`Removing truck ${truckId} from favorites for user ${userId}`);
+  
+  if (userFavorites[userId]) {
+    userFavorites[userId] = userFavorites[userId].filter(id => id !== truckId);
+    console.log(`Successfully removed truck ${truckId} from favorites`);
+  }
+  
+  res.json({ success: true, message: 'Food truck removed from favorites' });
+});
+
+// Check if food truck is in favorites
+app.get('/api/users/:userId/favorites/check/:truckId', (req, res) => {
+  const { userId, truckId } = req.params;
+  const isFavorite = userFavorites[userId]?.includes(truckId) || false;
+  console.log(`Checking if truck ${truckId} is favorite for user ${userId}: ${isFavorite}`);
+  res.json({ isFavorite });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong!' });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ message: 'Route not found' });
 });
 
 // Start server
@@ -273,6 +355,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
   console.log(`🍔 Food trucks: ${foodTrucks.length} loaded`);
   console.log(`👥 Users: ${users.length} loaded`);
+  console.log(`❤️  Favorites system: Ready`);
 });
 
-module.exports = app; 
+module.exports = app;
