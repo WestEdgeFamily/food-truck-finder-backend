@@ -1,197 +1,181 @@
-# Food Truck Backend API
+# Food Truck Finder Backend API
 
-A simple Express.js backend for the Food Truck Finder mobile app.
-
-## Features
-
-- ✅ User authentication (login/register)
-- ✅ Food truck listings with 5 pre-loaded trucks
-- ✅ Search and filtering
-- ✅ Location-based queries
-- ✅ CORS enabled for cross-origin requests
-
-## Quick Start
-
-```bash
-npm install
-npm start
-```
-
-The server will run on port 5000 (or PORT environment variable).
-
-## API Endpoints
-
-- `GET /api/health` - Health check
-- `GET /api/trucks` - Get all food trucks
-- `GET /api/trucks/:id` - Get specific truck
-- `GET /api/trucks/search?q=query` - Search trucks
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration
-
-## Test Accounts
-
-- **Customer**: `john@customer.com` / `password123`
-- **Owner**: `mike@tacos.com` / `password123`
-
-## Deploy to Render
-
-1. Push this code to GitHub
-2. Connect to Render.com
-3. Set build command: `npm install`
-4. Set start command: `npm start`
-5. Deploy!
-
-## Environment Variables
-
-- `PORT` - Server port (automatically set by Render)
-- `NODE_ENV` - Environment mode
+A Node.js/Express backend API for the Food Truck Finder mobile application with complete favorites system.
 
 ## Features
 
-- REST API for food truck data
-- User authentication (customers & owners)
-- Location tracking for food trucks
-- Search and filtering capabilities
-- CORS enabled for mobile app integration
-
-## Endpoints
-
-- `GET /api/health` - Health check
-- `GET /api/trucks` - List all food trucks
-- `GET /api/trucks/:id` - Get specific truck
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration
-- `PUT /api/trucks/:id/location` - Update truck location
-
-## Environment Variables
-
-- `PORT` - Server port (default: 5000)
-- `NODE_ENV` - Environment (development/production)
-
-## Quick Start
-
-```bash
-npm install
-npm start
-```
-
-## Deployment
-
-This backend is ready for deployment on:
-- Render
-- Heroku  
-- Railway
-- Vercel
-- Any Node.js hosting platform
-
-## Prerequisites
-
-- Node.js (v14 or higher)
-- MongoDB (v4.4 or higher)
-- npm or yarn
-
-## Setup
-
-1. Clone the repository
-2. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Create a `.env` file in the root directory with the following variables:
-   ```
-   PORT=5000
-   MONGODB_URI=mongodb://localhost:27017/food-truck-app
-   JWT_SECRET=your_jwt_secret_key_here
-   JWT_EXPIRE=30d
-   NODE_ENV=development
-   ```
-5. Start MongoDB service
-6. Seed the database with sample data:
-   ```bash
-   npm run seed
-   ```
-7. Start the development server:
-   ```bash
-   npm run dev
-   ```
+- 🚚 **Food Truck Management**: CRUD operations for food trucks
+- 👤 **User Authentication**: Login/register for customers and owners
+- ❤️ **Favorites System**: Add/remove/view favorite food trucks
+- 🔍 **Search & Filter**: Search trucks by name, cuisine, location
+- 📍 **Location Services**: Nearby truck discovery
+- 🏥 **Health Monitoring**: API health checks and status
 
 ## API Endpoints
+
+### Core Routes
+- `GET /` - API information and available endpoints
+- `GET /api/health` - Health check with system status
 
 ### Authentication
-- GET /api/auth/me - Get current user
+- `POST /api/auth/login` - User login
+- `POST /api/auth/register` - User registration
 
-### Users
-- GET /api/users - Get all users (admin only)
-- GET /api/users/:id - Get user by ID
-- PUT /api/users/:id - Update user
-- DELETE /api/users/:id - Delete user
+### Food Trucks
+- `GET /api/trucks` - Get all food trucks
+- `GET /api/trucks/:id` - Get specific food truck
+- `POST /api/trucks` - Create new food truck (owners)
+- `PUT /api/trucks/:id/location` - Update truck location
+- `GET /api/trucks/search?q=query` - Search food trucks
+- `GET /api/trucks/nearby?lat=&lng=&radius=` - Find nearby trucks
 
-### Trucks
-- GET /api/trucks - Get all trucks
-- GET /api/trucks/:id - Get truck by ID
-- POST /api/trucks - Create new truck
-- PUT /api/trucks/:id - Update truck
-- DELETE /api/trucks/:id - Delete truck
-- GET /api/trucks/owner/trucks - Get owner's trucks
-- PUT /api/trucks/:id/location - Update truck location
-- PUT /api/trucks/:id/schedule - Update truck schedule
+### Favorites System
+- `GET /api/users/:userId/favorites` - Get user's favorite trucks
+- `POST /api/users/:userId/favorites/:truckId` - Add truck to favorites
+- `DELETE /api/users/:userId/favorites/:truckId` - Remove from favorites
+- `GET /api/users/:userId/favorites/check/:truckId` - Check if truck is favorited
 
-### Reviews
-- GET /api/reviews/truck/:truckId - Get reviews for a truck
-- GET /api/reviews/user - Get user's reviews
-- POST /api/reviews - Create review
-- PUT /api/reviews/:id - Update review
-- DELETE /api/reviews/:id - Delete review
-- POST /api/reviews/:id/like - Like/Unlike review
+## Data Models
 
-### Recommendations
-- GET /api/recommendations - Get personalized recommendations
-- GET /api/recommendations/nearby - Get nearby trucks
-- GET /api/recommendations/trending - Get trending trucks
-- GET /api/recommendations/new - Get new trucks
-
-## Development
-
-- Run tests:
-  ```bash
-  npm test
-  ```
-- Run in development mode with hot reload:
-  ```bash
-  npm run dev
-  ```
-
-## Production
-
-- Build and start the server:
-  ```bash
-  npm start
-  ```
-
-## Error Handling
-
-The API uses standard HTTP status codes and returns error messages in the following format:
+### Food Truck
 ```json
 {
-  "message": "Error message here"
+  "_id": "string",
+  "name": "string",
+  "businessName": "string", 
+  "description": "string",
+  "ownerId": "string",
+  "cuisineTypes": ["string"],
+  "location": {
+    "latitude": "number",
+    "longitude": "number", 
+    "address": "string"
+  },
+  "rating": "number",
+  "reviewCount": "number",
+  "isOpen": "boolean",
+  "phone": "string",
+  "email": "string",
+  "createdAt": "string",
+  "lastUpdated": "string"
 }
 ```
 
-## Authentication
-
-Most endpoints require authentication using JWT tokens. Include the token in the Authorization header:
+### User
+```json
+{
+  "_id": "string",
+  "name": "string",
+  "email": "string",
+  "role": "customer|owner",
+  "phone": "string",
+  "businessName": "string" // for owners only
+}
 ```
-Authorization: Bearer <your_token>
+
+## Local Development
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+
+### Setup
+```bash
+# Clone the repository
+git clone <repository-url>
+cd backend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Or start production server
+npm start
 ```
 
-## Contributing
+The server will start on `http://localhost:5000`
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request 
+### Environment Variables
+No environment variables required for basic functionality. The app uses in-memory storage.
+
+## Deployment
+
+### Render Deployment
+1. Connect your GitHub repository to Render
+2. Create a new Web Service
+3. Use these settings:
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Node Version**: 18+
+
+### Manual Deployment
+```bash
+# Build and start
+npm install --production
+npm start
+```
+
+## Architecture
+
+- **Framework**: Express.js
+- **Storage**: In-memory (JavaScript objects)
+- **CORS**: Enabled for all origins
+- **Error Handling**: Centralized middleware
+- **Logging**: Console-based with request tracking
+
+## Sample Data
+
+The API comes pre-loaded with:
+- 5 sample food trucks (various cuisines)
+- 2 sample users (customer and owner)
+- Empty favorites system ready for use
+
+## Testing
+
+### Health Check
+```bash
+curl https://your-api-url.com/api/health
+```
+
+### Get Food Trucks
+```bash
+curl https://your-api-url.com/api/trucks
+```
+
+### Test Favorites
+```bash
+# Get favorites (should return empty array initially)
+curl https://your-api-url.com/api/users/user_1749785616229/favorites
+
+# Add to favorites
+curl -X POST https://your-api-url.com/api/users/user_1749785616229/favorites/1
+
+# Check favorites again
+curl https://your-api-url.com/api/users/user_1749785616229/favorites
+```
+
+## Production Considerations
+
+For production use, consider:
+- Database integration (MongoDB, PostgreSQL)
+- Authentication tokens (JWT)
+- Rate limiting
+- Input validation
+- Logging service
+- Environment-based configuration
+- HTTPS enforcement
+- API documentation (Swagger)
+
+## Support
+
+For issues or questions:
+1. Check the health endpoint: `/api/health`
+2. Review server logs
+3. Verify all required dependencies are installed
+4. Ensure Node.js version compatibility
+
+## License
+
+MIT License - see LICENSE file for details 
