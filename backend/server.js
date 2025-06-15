@@ -297,8 +297,8 @@ app.get('/api/users/:userId/favorites/check/:truckId', (req, res) => {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     message: 'Food Truck API is running',
     trucks: foodTrucks.length,
     users: users.length,
