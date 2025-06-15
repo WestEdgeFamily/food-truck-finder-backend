@@ -8,12 +8,18 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["food-truck", "api", "express", "favorites"],
+  "keywords": [
+    "food-truck",
+    "api",
+    "express",
+    "favorites"
+  ],
   "author": "Food Truck App",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

@@ -128,4 +128,7 @@ reset-*.js
 check-*.js
 social-*.js
 dashboard.html
-Dockerfile 
+Dockerfile
+
+# Database files
+data/ 

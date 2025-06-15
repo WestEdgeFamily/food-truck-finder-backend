@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -7,15 +9,50 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Mock database - In-memory storage
-let users = [
+// File-based database storage
+const DATA_DIR = path.join(__dirname, 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const TRUCKS_FILE = path.join(DATA_DIR, 'trucks.json');
+const FAVORITES_FILE = path.join(DATA_DIR, 'favorites.json');
+
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Database functions
+function loadData(filePath, defaultData = []) {
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error(`Error loading data from ${filePath}:`, error.message);
+  }
+  return defaultData;
+}
+
+function saveData(filePath, data) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    return true;
+  } catch (error) {
+    console.error(`Error saving data to ${filePath}:`, error.message);
+    return false;
+  }
+}
+
+// Initialize database with default data
+const defaultUsers = [
   {
     _id: 'user1',
     name: 'John Customer',
     email: 'john@customer.com',
     password: 'password123',
     role: 'customer',
-    phone: '(555) 123-4567'
+    phone: '(555) 123-4567',
+    createdAt: new Date().toISOString()
   },
   {
     _id: 'owner1',
@@ -24,11 +61,12 @@ let users = [
     password: 'password123',
     role: 'owner',
     phone: '(555) 987-6543',
-    businessName: 'Mike\'s Tacos'
+    businessName: 'Mike\'s Tacos',
+    createdAt: new Date().toISOString()
   }
 ];
 
-let foodTrucks = [
+const defaultTrucks = [
   {
     _id: '1',
     name: 'Gourmet Tacos',
@@ -136,8 +174,55 @@ let foodTrucks = [
   }
 ];
 
-// Favorites system - In-memory storage
-const userFavorites = {}; // userId -> [truckId, truckId, ...]
+// Load data from files or initialize with defaults
+let users = loadData(USERS_FILE, defaultUsers);
+let foodTrucks = loadData(TRUCKS_FILE, defaultTrucks);
+let userFavorites = loadData(FAVORITES_FILE, {});
+
+// Save initial data if files don't exist
+if (!fs.existsSync(USERS_FILE)) {
+  saveData(USERS_FILE, users);
+}
+if (!fs.existsSync(TRUCKS_FILE)) {
+  saveData(TRUCKS_FILE, foodTrucks);
+}
+if (!fs.existsSync(FAVORITES_FILE)) {
+  saveData(FAVORITES_FILE, userFavorites);
+}
+
+// Helper functions for database operations
+function addUser(user) {
+  users.push(user);
+  return saveData(USERS_FILE, users);
+}
+
+function updateTruck(truckId, updates) {
+  const index = foodTrucks.findIndex(t => t._id === truckId);
+  if (index !== -1) {
+    foodTrucks[index] = { ...foodTrucks[index], ...updates };
+    return saveData(TRUCKS_FILE, foodTrucks);
+  }
+  return false;
+}
+
+function addTruck(truck) {
+  foodTrucks.push(truck);
+  return saveData(TRUCKS_FILE, foodTrucks);
+}
+
+function updateFavorites(userId, truckId, action) {
+  if (!userFavorites[userId]) {
+    userFavorites[userId] = [];
+  }
+  
+  if (action === 'add' && !userFavorites[userId].includes(truckId)) {
+    userFavorites[userId].push(truckId);
+  } else if (action === 'remove') {
+    userFavorites[userId] = userFavorites[userId].filter(id => id !== truckId);
+  }
+  
+  return saveData(FAVORITES_FILE, userFavorites);
+}
 
 // Root route
 app.get('/', (req, res) => {
@@ -211,7 +296,7 @@ app.post('/api/auth/register', (req, res) => {
     createdAt: new Date().toISOString()
   };
   
-  users.push(newUser);
+  addUser(newUser);
   
   const token = `token_${newUser._id}_${Date.now()}`;
   res.json({
@@ -247,12 +332,14 @@ app.put('/api/trucks/:id/location', (req, res) => {
   const truckIndex = foodTrucks.findIndex(t => t._id === req.params.id);
   
   if (truckIndex !== -1) {
-    foodTrucks[truckIndex].location = {
-      latitude,
-      longitude,
-      address
-    };
-    foodTrucks[truckIndex].lastUpdated = new Date().toISOString();
+    updateTruck(req.params.id, {
+      location: {
+        latitude,
+        longitude,
+        address
+      },
+      lastUpdated: new Date().toISOString()
+    });
     res.json({ success: true, message: 'Location updated' });
   } else {
     res.status(404).json({ message: 'Food truck not found' });
@@ -286,7 +373,7 @@ app.post('/api/trucks', (req, res) => {
     reviewCount: 0
   };
   
-  foodTrucks.push(newTruck);
+  addTruck(newTruck);
   res.json({ success: true, truck: newTruck });
 });
 
@@ -300,8 +387,7 @@ app.put('/api/trucks/:id/cover-photo', (req, res) => {
   const truckIndex = foodTrucks.findIndex(t => t._id === id);
   
   if (truckIndex !== -1) {
-    foodTrucks[truckIndex].image = imageUrl;
-    foodTrucks[truckIndex].lastUpdated = new Date().toISOString();
+    updateTruck(id, { image: imageUrl, lastUpdated: new Date().toISOString() });
     console.log(`Successfully updated cover photo for truck ${id}`);
     res.json({ success: true, message: 'Cover photo updated', truck: foodTrucks[truckIndex] });
   } else {
@@ -340,16 +426,7 @@ app.post('/api/users/:userId/favorites/:truckId', (req, res) => {
   const { userId, truckId } = req.params;
   console.log(`Adding truck ${truckId} to favorites for user ${userId}`);
   
-  if (!userFavorites[userId]) {
-    userFavorites[userId] = [];
-  }
-  
-  if (!userFavorites[userId].includes(truckId)) {
-    userFavorites[userId].push(truckId);
-    console.log(`Successfully added truck ${truckId} to favorites`);
-  } else {
-    console.log(`Truck ${truckId} already in favorites`);
-  }
+  updateFavorites(userId, truckId, 'add');
   
   res.json({ success: true, message: 'Food truck added to favorites' });
 });
@@ -359,10 +436,7 @@ app.delete('/api/users/:userId/favorites/:truckId', (req, res) => {
   const { userId, truckId } = req.params;
   console.log(`Removing truck ${truckId} from favorites for user ${userId}`);
   
-  if (userFavorites[userId]) {
-    userFavorites[userId] = userFavorites[userId].filter(id => id !== truckId);
-    console.log(`Successfully removed truck ${truckId} from favorites`);
-  }
+  updateFavorites(userId, truckId, 'remove');
   
   res.json({ success: true, message: 'Food truck removed from favorites' });
 });
