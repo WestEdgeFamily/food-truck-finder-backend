@@ -330,7 +330,14 @@ app.get('/', (req, res) => {
       health: '/api/health',
       trucks: '/api/trucks',
       auth: '/api/auth/login',
-      favorites: '/api/users/:userId/favorites'
+      register: '/api/auth/register',
+      favorites: '/api/users/:userId/favorites',
+      truckUpdate: '/api/trucks/:id',
+      menu: '/api/trucks/:id/menu',
+      schedule: '/api/trucks/:id/schedule',
+      analytics: '/api/trucks/:id/analytics',
+      posSettings: '/api/pos/settings/:ownerId',
+      posChildAccounts: '/api/pos/child-accounts/:ownerId'
     }
   });
 });
@@ -394,8 +401,48 @@ app.post('/api/auth/register', (req, res) => {
   
   addUser(newUser);
   
+  let foodTruckId = null;
+  
+  // Auto-create food truck for owner registrations
+  if (role === 'owner' && businessName) {
+    const newTruck = {
+      id: `truck_${Date.now()}`,
+      name: businessName,
+      businessName: businessName,
+      description: `Welcome to ${businessName}! We're excited to serve you delicious food from our food truck.`,
+      cuisine: 'American', // Default cuisine type
+      rating: 0,
+      image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
+      location: {
+        latitude: null,
+        longitude: null,
+        address: 'Location to be set by owner'
+      },
+      hours: 'Hours to be set by owner',
+      phone: phone || '',
+      menu: [],
+      ownerId: newUser._id,
+      isOpen: false,
+      createdAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+      reviewCount: 0,
+      // POS Integration fields
+      posSettings: {
+        parentAccountId: newUser._id,
+        childAccounts: [],
+        allowPosTracking: true,
+        posApiKey: `pos_${newUser._id}_${Date.now()}`,
+        posWebhookUrl: null
+      }
+    };
+    
+    addTruck(newTruck);
+    foodTruckId = newTruck.id;
+    console.log(`✅ Auto-created food truck for owner: ${businessName} (ID: ${foodTruckId})`);
+  }
+  
   const token = `token_${newUser._id}_${Date.now()}`;
-  res.json({
+  const response = {
     success: true,
     token: token,
     user: {
@@ -406,7 +453,14 @@ app.post('/api/auth/register', (req, res) => {
       phone: newUser.phone,
       businessName: newUser.businessName
     }
-  });
+  };
+  
+  // Include food truck ID for owners
+  if (foodTruckId) {
+    response.foodTruckId = foodTruckId;
+  }
+  
+  res.json(response);
 });
 
 // Food Truck Routes
@@ -473,6 +527,27 @@ app.post('/api/trucks', (req, res) => {
   res.json({ success: true, truck: newTruck });
 });
 
+// Update food truck (for owners)
+app.put('/api/trucks/:id', (req, res) => {
+  const { id } = req.params;
+  const updates = {
+    ...req.body,
+    lastUpdated: new Date().toISOString()
+  };
+  
+  const truckIndex = trucks.findIndex(t => t.id === id);
+  
+  if (truckIndex !== -1) {
+    updateTruck(id, updates);
+    const updatedTruck = trucks[truckIndex];
+    console.log(`✅ Updated food truck: ${updatedTruck.name} (ID: ${id})`);
+    res.json({ success: true, truck: updatedTruck });
+  } else {
+    console.log(`❌ Truck ${id} not found for update`);
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
 // Update food truck cover photo
 app.put('/api/trucks/:id/cover-photo', (req, res) => {
   const { id } = req.params;
@@ -502,6 +577,246 @@ app.get('/api/trucks/:id/cover-photo', (req, res) => {
   } else {
     res.status(404).json({ message: 'Food truck not found' });
   }
+});
+
+// ===== MENU MANAGEMENT ROUTES =====
+// Get menu items for a food truck
+app.get('/api/trucks/:id/menu', (req, res) => {
+  const { id } = req.params;
+  const truck = trucks.find(t => t.id === id);
+  
+  if (truck) {
+    res.json({ success: true, menu: truck.menu || [] });
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// Update menu items for a food truck
+app.put('/api/trucks/:id/menu', (req, res) => {
+  const { id } = req.params;
+  const { menu } = req.body;
+  
+  const truckIndex = trucks.findIndex(t => t.id === id);
+  
+  if (truckIndex !== -1) {
+    updateTruck(id, { 
+      menu: menu || [],
+      lastUpdated: new Date().toISOString()
+    });
+    res.json({ success: true, message: 'Menu updated', menu: trucks[truckIndex].menu });
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// ===== SCHEDULE MANAGEMENT ROUTES =====
+// Get schedule for a food truck
+app.get('/api/trucks/:id/schedule', (req, res) => {
+  const { id } = req.params;
+  const truck = trucks.find(t => t.id === id);
+  
+  if (truck) {
+    res.json({ 
+      success: true, 
+      schedule: truck.schedule || {
+        monday: { open: '09:00', close: '17:00', isOpen: true },
+        tuesday: { open: '09:00', close: '17:00', isOpen: true },
+        wednesday: { open: '09:00', close: '17:00', isOpen: true },
+        thursday: { open: '09:00', close: '17:00', isOpen: true },
+        friday: { open: '09:00', close: '17:00', isOpen: true },
+        saturday: { open: '10:00', close: '16:00', isOpen: true },
+        sunday: { open: '10:00', close: '16:00', isOpen: false }
+      }
+    });
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// Update schedule for a food truck
+app.put('/api/trucks/:id/schedule', (req, res) => {
+  const { id } = req.params;
+  const { schedule } = req.body;
+  
+  const truckIndex = trucks.findIndex(t => t.id === id);
+  
+  if (truckIndex !== -1) {
+    updateTruck(id, { 
+      schedule: schedule,
+      lastUpdated: new Date().toISOString()
+    });
+    res.json({ success: true, message: 'Schedule updated', schedule: trucks[truckIndex].schedule });
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// ===== ANALYTICS ROUTES =====
+// Get analytics data for a food truck
+app.get('/api/trucks/:id/analytics', (req, res) => {
+  const { id } = req.params;
+  const truck = trucks.find(t => t.id === id);
+  
+  if (truck) {
+    // Mock analytics data - in production this would come from real data
+    const analytics = {
+      totalViews: Math.floor(Math.random() * 1000) + 100,
+      totalFavorites: Math.floor(Math.random() * 50) + 10,
+      averageRating: truck.rating || 4.2,
+      totalReviews: truck.reviewCount || Math.floor(Math.random() * 20) + 5,
+      weeklyViews: [
+        { day: 'Mon', views: Math.floor(Math.random() * 50) + 10 },
+        { day: 'Tue', views: Math.floor(Math.random() * 50) + 10 },
+        { day: 'Wed', views: Math.floor(Math.random() * 50) + 10 },
+        { day: 'Thu', views: Math.floor(Math.random() * 50) + 10 },
+        { day: 'Fri', views: Math.floor(Math.random() * 50) + 10 },
+        { day: 'Sat', views: Math.floor(Math.random() * 50) + 10 },
+        { day: 'Sun', views: Math.floor(Math.random() * 50) + 10 }
+      ],
+      monthlyRevenue: [
+        { month: 'Jan', revenue: Math.floor(Math.random() * 5000) + 1000 },
+        { month: 'Feb', revenue: Math.floor(Math.random() * 5000) + 1000 },
+        { month: 'Mar', revenue: Math.floor(Math.random() * 5000) + 1000 },
+        { month: 'Apr', revenue: Math.floor(Math.random() * 5000) + 1000 },
+        { month: 'May', revenue: Math.floor(Math.random() * 5000) + 1000 },
+        { month: 'Jun', revenue: Math.floor(Math.random() * 5000) + 1000 }
+      ]
+    };
+    
+    res.json({ success: true, analytics });
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// ===== POS INTEGRATION ROUTES =====
+// Get POS settings for owner
+app.get('/api/pos/settings/:ownerId', (req, res) => {
+  const { ownerId } = req.params;
+  const truck = trucks.find(t => t.ownerId === ownerId);
+  
+  if (!truck) {
+    return res.status(404).json({ message: 'Food truck not found' });
+  }
+  
+  res.json({
+    success: true,
+    posSettings: truck.posSettings || {
+      parentAccountId: ownerId,
+      childAccounts: [],
+      allowPosTracking: true,
+      posApiKey: `pos_${ownerId}_${Date.now()}`,
+      posWebhookUrl: null
+    }
+  });
+});
+
+// Create child POS account
+app.post('/api/pos/child-account', (req, res) => {
+  const { parentOwnerId, childAccountName, permissions } = req.body;
+  
+  const truck = trucks.find(t => t.ownerId === parentOwnerId);
+  if (!truck) {
+    return res.status(404).json({ message: 'Food truck not found' });
+  }
+  
+  const childAccount = {
+    id: `child_${Date.now()}`,
+    name: childAccountName,
+    apiKey: `child_${parentOwnerId}_${Date.now()}`,
+    permissions: permissions || ['location_update', 'status_update'],
+    createdAt: new Date().toISOString(),
+    isActive: true
+  };
+  
+  if (!truck.posSettings) {
+    truck.posSettings = {
+      parentAccountId: parentOwnerId,
+      childAccounts: [],
+      allowPosTracking: true,
+      posApiKey: `pos_${parentOwnerId}_${Date.now()}`,
+      posWebhookUrl: null
+    };
+  }
+  
+  truck.posSettings.childAccounts.push(childAccount);
+  updateTruck(truck.id, { posSettings: truck.posSettings });
+  
+  console.log(`✅ Created child POS account: ${childAccountName} for ${truck.name}`);
+  res.json({ success: true, childAccount });
+});
+
+// POS location update (from child account)
+app.post('/api/pos/location-update', (req, res) => {
+  const { apiKey, latitude, longitude, address, isOpen } = req.body;
+  
+  // Find truck by child API key
+  const truck = trucks.find(t => 
+    t.posSettings?.childAccounts?.some(child => child.apiKey === apiKey && child.isActive)
+  );
+  
+  if (!truck) {
+    return res.status(401).json({ message: 'Invalid POS API key' });
+  }
+  
+  const childAccount = truck.posSettings.childAccounts.find(child => child.apiKey === apiKey);
+  if (!childAccount.permissions.includes('location_update')) {
+    return res.status(403).json({ message: 'No permission for location updates' });
+  }
+  
+  // Update truck location
+  const updates = {
+    location: {
+      latitude,
+      longitude,
+      address: address || truck.location.address
+    },
+    lastUpdated: new Date().toISOString()
+  };
+  
+  if (typeof isOpen === 'boolean') {
+    updates.isOpen = isOpen;
+  }
+  
+  updateTruck(truck.id, updates);
+  
+  console.log(`📍 POS location update for ${truck.name}: ${latitude}, ${longitude}`);
+  res.json({ success: true, message: 'Location updated via POS' });
+});
+
+// Get child accounts for owner
+app.get('/api/pos/child-accounts/:ownerId', (req, res) => {
+  const { ownerId } = req.params;
+  const truck = trucks.find(t => t.ownerId === ownerId);
+  
+  if (!truck || !truck.posSettings) {
+    return res.json({ success: true, childAccounts: [] });
+  }
+  
+  res.json({ success: true, childAccounts: truck.posSettings.childAccounts });
+});
+
+// Deactivate child account
+app.put('/api/pos/child-account/:childId/deactivate', (req, res) => {
+  const { childId } = req.params;
+  const { ownerId } = req.body;
+  
+  const truck = trucks.find(t => t.ownerId === ownerId);
+  if (!truck || !truck.posSettings) {
+    return res.status(404).json({ message: 'Food truck not found' });
+  }
+  
+  const childAccount = truck.posSettings.childAccounts.find(child => child.id === childId);
+  if (!childAccount) {
+    return res.status(404).json({ message: 'Child account not found' });
+  }
+  
+  childAccount.isActive = false;
+  updateTruck(truck.id, { posSettings: truck.posSettings });
+  
+  console.log(`🚫 Deactivated child POS account: ${childAccount.name}`);
+  res.json({ success: true, message: 'Child account deactivated' });
 });
 
 // ===== FAVORITES ROUTES =====
