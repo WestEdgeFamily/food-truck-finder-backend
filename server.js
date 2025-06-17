@@ -43,6 +43,23 @@ function saveData(filePath, data) {
   }
 }
 
+// Helper function to check if a truck is currently open
+function isCurrentlyOpen(schedule) {
+  if (!schedule) return false;
+  
+  const now = new Date();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const currentDay = dayNames[now.getDay()];
+  const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  
+  const todaySchedule = schedule[currentDay];
+  if (!todaySchedule || !todaySchedule.isOpen) {
+    return false;
+  }
+  
+  return currentTime >= todaySchedule.open && currentTime <= todaySchedule.close;
+}
+
 // Initialize database with default data
 const defaultUsers = [
   {
@@ -66,14 +83,18 @@ const defaultUsers = [
   }
 ];
 
-// Sample food trucks data with Utah-based businesses
+// Sample food trucks data with Utah-based businesses + dynamic schedules
 const foodTrucks = [
   {
     id: '1',
+    _id: '1', // Added for mobile app compatibility
     name: 'Cupbop Korean BBQ',
+    businessName: 'Cupbop Korean BBQ',
     description: 'Authentic Korean BBQ bowls with fresh ingredients and bold flavors',
     cuisine: 'Korean',
+    cuisineTypes: ['Korean', 'BBQ'], // Added for mobile app compatibility
     rating: 4.6,
+    reviewCount: 156,
     image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400',
     location: {
       latitude: 40.7608,
@@ -81,19 +102,36 @@ const foodTrucks = [
       address: '147 S Main St, Salt Lake City, UT 84111'
     },
     hours: 'Mon-Sat: 11:00 AM - 9:00 PM, Sun: 12:00 PM - 8:00 PM',
+    schedule: {
+      monday: { open: '11:00', close: '21:00', isOpen: true },
+      tuesday: { open: '11:00', close: '21:00', isOpen: true },
+      wednesday: { open: '11:00', close: '21:00', isOpen: true },
+      thursday: { open: '11:00', close: '21:00', isOpen: true },
+      friday: { open: '11:00', close: '21:00', isOpen: true },
+      saturday: { open: '11:00', close: '21:00', isOpen: true },
+      sunday: { open: '12:00', close: '20:00', isOpen: true }
+    },
     phone: '(801) 532-4772',
+    email: 'info@cupbop.com',
     menu: [
-      { name: 'Sweet & Spicy Chicken Bowl', price: 12.99, description: 'Grilled chicken with sweet and spicy sauce over rice' },
-      { name: 'Bulgogi Beef Bowl', price: 14.99, description: 'Marinated beef with vegetables and rice' },
-      { name: 'Tofu Veggie Bowl', price: 11.99, description: 'Crispy tofu with fresh vegetables and Korean sauce' }
-    ]
+      { id: '1', name: 'Sweet & Spicy Chicken Bowl', price: 12.99, description: 'Grilled chicken with sweet and spicy sauce over rice' },
+      { id: '2', name: 'Bulgogi Beef Bowl', price: 14.99, description: 'Marinated beef with vegetables and rice' },
+      { id: '3', name: 'Tofu Veggie Bowl', price: 11.99, description: 'Crispy tofu with fresh vegetables and Korean sauce' }
+    ],
+    isOpen: true,
+    createdAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   },
   {
     id: '2',
+    _id: '2',
     name: 'The Pie Pizzeria',
+    businessName: 'The Pie Pizzeria',
     description: 'Utah\'s legendary pizza since 1980 - thick crust perfection',
     cuisine: 'Italian',
+    cuisineTypes: ['Italian', 'Pizza'],
     rating: 4.4,
+    reviewCount: 203,
     image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400',
     location: {
       latitude: 40.7505,
@@ -101,19 +139,36 @@ const foodTrucks = [
       address: '1320 E 200 S, Salt Lake City, UT 84102'
     },
     hours: 'Mon-Thu: 11:00 AM - 10:00 PM, Fri-Sat: 11:00 AM - 11:00 PM, Sun: 12:00 PM - 10:00 PM',
+    schedule: {
+      monday: { open: '11:00', close: '22:00', isOpen: true },
+      tuesday: { open: '11:00', close: '22:00', isOpen: true },
+      wednesday: { open: '11:00', close: '22:00', isOpen: true },
+      thursday: { open: '11:00', close: '22:00', isOpen: true },
+      friday: { open: '11:00', close: '23:00', isOpen: true },
+      saturday: { open: '11:00', close: '23:00', isOpen: true },
+      sunday: { open: '12:00', close: '22:00', isOpen: false }
+    },
     phone: '(801) 582-0193',
+    email: 'info@thepie.com',
     menu: [
-      { name: 'The Pie Supreme', price: 18.99, description: 'Pepperoni, sausage, mushrooms, olives, peppers on thick crust' },
-      { name: 'Margherita Pizza', price: 15.99, description: 'Fresh mozzarella, basil, and tomato sauce' },
-      { name: 'Garlic Bread', price: 6.99, description: 'Homemade bread with garlic butter and herbs' }
-    ]
+      { id: '1', name: 'The Pie Supreme', price: 18.99, description: 'Pepperoni, sausage, mushrooms, olives, peppers on thick crust' },
+      { id: '2', name: 'Margherita Pizza', price: 15.99, description: 'Fresh mozzarella, basil, and tomato sauce' },
+      { id: '3', name: 'Garlic Bread', price: 6.99, description: 'Homemade bread with garlic butter and herbs' }
+    ],
+    isOpen: false,
+    createdAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   },
   {
     id: '3',
+    _id: '3',
     name: 'Red Iguana Mobile',
+    businessName: 'Red Iguana Mobile',
     description: 'Award-winning Mexican cuisine with authentic mole sauces',
     cuisine: 'Mexican',
+    cuisineTypes: ['Mexican', 'Street Food'],
     rating: 4.7,
+    reviewCount: 127,
     image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
     location: {
       latitude: 40.7831,
@@ -121,19 +176,36 @@ const foodTrucks = [
       address: '736 W North Temple, Salt Lake City, UT 84116'
     },
     hours: 'Mon-Thu: 11:00 AM - 9:00 PM, Fri-Sat: 11:00 AM - 10:00 PM, Sun: 10:00 AM - 9:00 PM',
+    schedule: {
+      monday: { open: '11:00', close: '21:00', isOpen: true },
+      tuesday: { open: '11:00', close: '21:00', isOpen: true },
+      wednesday: { open: '11:00', close: '21:00', isOpen: true },
+      thursday: { open: '11:00', close: '21:00', isOpen: true },
+      friday: { open: '11:00', close: '22:00', isOpen: true },
+      saturday: { open: '11:00', close: '22:00', isOpen: true },
+      sunday: { open: '10:00', close: '21:00', isOpen: true }
+    },
     phone: '(801) 322-1489',
+    email: 'orders@rediguana.com',
     menu: [
-      { name: 'Mole Enchiladas', price: 16.99, description: 'Three enchiladas with choice of seven mole sauces' },
-      { name: 'Carnitas Tacos', price: 13.99, description: 'Slow-cooked pork with onions and cilantro' },
-      { name: 'Chile Relleno', price: 15.99, description: 'Roasted poblano pepper stuffed with cheese' }
-    ]
+      { id: '1', name: 'Mole Enchiladas', price: 16.99, description: 'Three enchiladas with choice of seven mole sauces' },
+      { id: '2', name: 'Carnitas Tacos', price: 13.99, description: 'Slow-cooked pork with onions and cilantro' },
+      { id: '3', name: 'Chile Relleno', price: 15.99, description: 'Roasted poblano pepper stuffed with cheese' }
+    ],
+    isOpen: true,
+    createdAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   },
   {
     id: '4',
+    _id: '4',
     name: 'Crown Burgers Mobile',
+    businessName: 'Crown Burgers Mobile',
     description: 'Utah\'s iconic burger joint with famous pastrami burgers',
     cuisine: 'American',
+    cuisineTypes: ['American', 'Burgers'],
     rating: 4.3,
+    reviewCount: 89,
     image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400',
     location: {
       latitude: 40.6892,
@@ -141,19 +213,36 @@ const foodTrucks = [
       address: '3190 S Highland Dr, Salt Lake City, UT 84106'
     },
     hours: 'Mon-Sat: 10:00 AM - 10:00 PM, Sun: 11:00 AM - 9:00 PM',
+    schedule: {
+      monday: { open: '10:00', close: '22:00', isOpen: true },
+      tuesday: { open: '10:00', close: '22:00', isOpen: true },
+      wednesday: { open: '10:00', close: '22:00', isOpen: true },
+      thursday: { open: '10:00', close: '22:00', isOpen: true },
+      friday: { open: '10:00', close: '22:00', isOpen: true },
+      saturday: { open: '10:00', close: '22:00', isOpen: true },
+      sunday: { open: '11:00', close: '21:00', isOpen: true }
+    },
     phone: '(801) 467-6633',
+    email: 'info@crownburgers.com',
     menu: [
-      { name: 'Crown Burger', price: 11.99, description: 'Quarter-pound beef patty with pastrami and special sauce' },
-      { name: 'Chicken Club', price: 10.99, description: 'Grilled chicken breast with bacon and avocado' },
-      { name: 'Onion Rings', price: 5.99, description: 'Beer-battered onion rings with ranch dipping sauce' }
-    ]
+      { id: '1', name: 'Crown Burger', price: 11.99, description: 'Quarter-pound beef patty with pastrami and special sauce' },
+      { id: '2', name: 'Chicken Club', price: 10.99, description: 'Grilled chicken breast with bacon and avocado' },
+      { id: '3', name: 'Onion Rings', price: 5.99, description: 'Beer-battered onion rings with ranch dipping sauce' }
+    ],
+    isOpen: true,
+    createdAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   },
   {
     id: '5',
+    _id: '5',
     name: 'Sill-Ice Cream Truck',
+    businessName: 'Sill-Ice Cream Truck',
     description: 'Artisanal ice cream and frozen treats made with local ingredients',
     cuisine: 'Dessert',
+    cuisineTypes: ['Desserts', 'Ice Cream'],
     rating: 4.8,
+    reviewCount: 92,
     image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400',
     location: {
       latitude: 40.7505,
@@ -161,112 +250,25 @@ const foodTrucks = [
       address: '840 E 900 S, Salt Lake City, UT 84102'
     },
     hours: 'Mon-Sun: 12:00 PM - 8:00 PM (Seasonal)',
+    schedule: {
+      monday: { open: '12:00', close: '20:00', isOpen: true },
+      tuesday: { open: '12:00', close: '20:00', isOpen: true },
+      wednesday: { open: '12:00', close: '20:00', isOpen: true },
+      thursday: { open: '12:00', close: '20:00', isOpen: true },
+      friday: { open: '12:00', close: '20:00', isOpen: true },
+      saturday: { open: '10:00', close: '20:00', isOpen: true },
+      sunday: { open: '10:00', close: '20:00', isOpen: true }
+    },
     phone: '(801) 555-SILL',
+    email: 'sweet@sill.com',
     menu: [
-      { name: 'Utah Honey Lavender', price: 6.99, description: 'Local honey and lavender ice cream' },
-      { name: 'Rocky Road Sundae', price: 8.99, description: 'Chocolate ice cream with marshmallows and nuts' },
-      { name: 'Fresh Fruit Popsicle', price: 4.99, description: 'Made with seasonal Utah fruits' }
-    ]
-  },
-  {
-    id: '6',
-    name: 'Waffle Love Truck',
-    description: 'Gourmet Belgian waffles with creative toppings and local ingredients',
-    cuisine: 'Breakfast',
-    rating: 4.5,
-    image: 'https://images.unsplash.com/photo-1562376552-0d160dcb0e64?w=400',
-    location: {
-      latitude: 40.7589,
-      longitude: -111.8883,
-      address: '50 E 200 S, Salt Lake City, UT 84111'
-    },
-    hours: 'Tue & Thu: 11:00 AM - 2:00 PM (Gallivan Center)',
-    phone: '(801) 900-9283',
-    menu: [
-      { name: 'Nutella Berry Waffle', price: 9.99, description: 'Belgian waffle with Nutella, strawberries, and whipped cream' },
-      { name: 'Chicken & Waffle', price: 12.99, description: 'Crispy chicken breast on Belgian waffle with maple syrup' },
-      { name: 'Cinnamon Sugar Waffle', price: 7.99, description: 'Classic waffle with cinnamon sugar and butter' }
-    ]
-  },
-  {
-    id: '7',
-    name: 'Komrades Food Truck',
-    description: 'Farm-to-face naan wraps with fresh, locally-sourced ingredients',
-    cuisine: 'Fusion',
-    rating: 4.4,
-    image: 'https://images.unsplash.com/photo-1565299507177-b0ac66763828?w=400',
-    location: {
-      latitude: 40.5649,
-      longitude: -111.8389,
-      address: '9150 S State St, Sandy, UT 84070'
-    },
-    hours: 'Mon-Fri: 11:00 AM - 8:00 PM, Sat: 12:00 PM - 9:00 PM',
-    phone: '(801) 572-4663',
-    menu: [
-      { name: 'Tikka Masala Naan Wrap', price: 11.99, description: 'Chicken tikka masala in fresh naan with vegetables' },
-      { name: 'Mediterranean Wrap', price: 10.99, description: 'Hummus, feta, olives, and fresh vegetables in naan' },
-      { name: 'BBQ Pulled Pork Wrap', price: 12.99, description: 'Slow-cooked pulled pork with coleslaw in naan' }
-    ]
-  },
-  {
-    id: '8',
-    name: 'Ol\' Skool Food Truck',
-    description: 'Comfort food classics with a modern twist - burritos and hearty meals',
-    cuisine: 'American',
-    rating: 4.2,
-    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
-    location: {
-      latitude: 41.0888,
-      longitude: -112.0635,
-      address: '1979 W 1800 N, Syracuse, UT 84075'
-    },
-    hours: 'Mon-Sat: 10:00 AM - 8:00 PM, Sun: 11:00 AM - 6:00 PM',
-    phone: '(801) 825-7665',
-    menu: [
-      { name: 'Loaded Breakfast Burrito', price: 9.99, description: 'Eggs, bacon, potatoes, cheese, and green chile' },
-      { name: 'BBQ Brisket Sandwich', price: 13.99, description: 'Slow-smoked brisket with coleslaw on brioche bun' },
-      { name: 'Mac & Cheese Bowl', price: 8.99, description: 'Creamy mac and cheese with bacon bits' }
-    ]
-  },
-  {
-    id: '9',
-    name: 'Breaking Bread Truck',
-    description: 'Professional catering truck specializing in artisan sandwiches and salads',
-    cuisine: 'Sandwiches',
-    rating: 4.6,
-    image: 'https://images.unsplash.com/photo-1553909489-cd47e0ef937f?w=400',
-    location: {
-      latitude: 40.4259,
-      longitude: -111.8932,
-      address: '2502 Cabela\'s Blvd, Lehi, UT 84043'
-    },
-    hours: 'Sat-Sun: 11:00 AM - 6:00 PM (Cabela\'s Lehi)',
-    phone: '(801) 768-2732',
-    menu: [
-      { name: 'Artisan Turkey Club', price: 11.99, description: 'Roasted turkey, bacon, avocado on sourdough' },
-      { name: 'Caprese Panini', price: 10.99, description: 'Fresh mozzarella, tomato, basil on grilled focaccia' },
-      { name: 'Caesar Salad Wrap', price: 9.99, description: 'Romaine, parmesan, croutons, caesar dressing' }
-    ]
-  },
-  {
-    id: '10',
-    name: 'Rocky Mountain Burger Bus',
-    description: 'Gourmet burgers made with locally-sourced beef and creative toppings',
-    cuisine: 'American',
-    rating: 4.3,
-    image: 'https://images.unsplash.com/photo-1571091718767-18b5b1457add?w=400',
-    location: {
-      latitude: 40.6501,
-      longitude: -111.8338,
-      address: '5300 S Murray Park Ave, Murray, UT 84107'
-    },
-    hours: 'Tue: 11:00 AM - 2:00 PM (Murray Park), Events by booking',
-    phone: '(801) 266-8989',
-    menu: [
-      { name: 'Rocky Mountain High Burger', price: 14.99, description: 'Angus beef, green chile, pepper jack, avocado' },
-      { name: 'Mushroom Swiss Burger', price: 13.99, description: 'Sautéed mushrooms, Swiss cheese, garlic aioli' },
-      { name: 'Sweet Potato Fries', price: 6.99, description: 'Crispy sweet potato fries with chipotle mayo' }
-    ]
+      { id: '1', name: 'Utah Honey Lavender', price: 6.99, description: 'Local honey and lavender ice cream' },
+      { id: '2', name: 'Rocky Road Sundae', price: 8.99, description: 'Chocolate ice cream with marshmallows and nuts' },
+      { id: '3', name: 'Fresh Fruit Popsicle', price: 4.99, description: 'Made with seasonal Utah fruits' }
+    ],
+    isOpen: true,
+    createdAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
   }
 ];
 
@@ -407,11 +409,14 @@ app.post('/api/auth/register', (req, res) => {
   if (role === 'owner' && businessName) {
     const newTruck = {
       id: `truck_${Date.now()}`,
+      _id: `truck_${Date.now()}`,
       name: businessName,
       businessName: businessName,
       description: `Welcome to ${businessName}! We're excited to serve you delicious food from our food truck.`,
-      cuisine: 'American', // Default cuisine type
+      cuisine: 'American',
+      cuisineTypes: ['American'],
       rating: 0,
+      reviewCount: 0,
       image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
       location: {
         latitude: null,
@@ -419,14 +424,22 @@ app.post('/api/auth/register', (req, res) => {
         address: 'Location to be set by owner'
       },
       hours: 'Hours to be set by owner',
+      schedule: {
+        monday: { open: '09:00', close: '17:00', isOpen: true },
+        tuesday: { open: '09:00', close: '17:00', isOpen: true },
+        wednesday: { open: '09:00', close: '17:00', isOpen: true },
+        thursday: { open: '09:00', close: '17:00', isOpen: true },
+        friday: { open: '09:00', close: '17:00', isOpen: true },
+        saturday: { open: '10:00', close: '16:00', isOpen: true },
+        sunday: { open: '10:00', close: '16:00', isOpen: false }
+      },
       phone: phone || '',
+      email: email || '',
       menu: [],
       ownerId: newUser._id,
       isOpen: false,
       createdAt: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
-      reviewCount: 0,
-      // POS Integration fields
       posSettings: {
         parentAccountId: newUser._id,
         childAccounts: [],
@@ -455,7 +468,6 @@ app.post('/api/auth/register', (req, res) => {
     }
   };
   
-  // Include food truck ID for owners
   if (foodTruckId) {
     response.foodTruckId = foodTruckId;
   }
@@ -463,15 +475,35 @@ app.post('/api/auth/register', (req, res) => {
   res.json(response);
 });
 
-// Food Truck Routes
+// Food Truck Routes with dynamic open/closed status
 app.get('/api/trucks', (req, res) => {
-  res.json(trucks);
+  // Update open/closed status for all trucks based on current time
+  const updatedTrucks = trucks.map(truck => ({
+    ...truck,
+    isOpen: isCurrentlyOpen(truck.schedule)
+  }));
+  res.json(updatedTrucks);
 });
 
 app.get('/api/trucks/:id', (req, res) => {
-  const truck = trucks.find(t => t.id === req.params.id);
+  const truck = trucks.find(t => t.id === req.params.id || t._id === req.params.id);
   if (truck) {
-    res.json(truck);
+    // Update open/closed status based on current time
+    const updatedTruck = {
+      ...truck,
+      isOpen: isCurrentlyOpen(truck.schedule)
+    };
+    res.json(updatedTruck);
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// Get menu for a specific food truck
+app.get('/api/trucks/:id/menu', (req, res) => {
+  const truck = trucks.find(t => t.id === req.params.id || t._id === req.params.id);
+  if (truck) {
+    res.json({ success: true, menu: truck.menu || [] });
   } else {
     res.status(404).json({ message: 'Food truck not found' });
   }
@@ -516,6 +548,7 @@ app.get('/api/trucks/nearby', (req, res) => {
 app.post('/api/trucks', (req, res) => {
   const newTruck = {
     id: `truck_${Date.now()}`,
+    _id: `truck_${Date.now()}`,
     ...req.body,
     createdAt: new Date().toISOString(),
     lastUpdated: new Date().toISOString(),
@@ -580,18 +613,6 @@ app.get('/api/trucks/:id/cover-photo', (req, res) => {
 });
 
 // ===== MENU MANAGEMENT ROUTES =====
-// Get menu items for a food truck
-app.get('/api/trucks/:id/menu', (req, res) => {
-  const { id } = req.params;
-  const truck = trucks.find(t => t.id === id);
-  
-  if (truck) {
-    res.json({ success: true, menu: truck.menu || [] });
-  } else {
-    res.status(404).json({ message: 'Food truck not found' });
-  }
-});
-
 // Update menu items for a food truck
 app.put('/api/trucks/:id/menu', (req, res) => {
   const { id } = req.params;
@@ -878,6 +899,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🍔 Food trucks: ${trucks.length} loaded`);
   console.log(`👥 Users: ${users.length} loaded`);
   console.log(`❤️  Favorites system: Ready`);
+  console.log(`⏰ Dynamic open/closed status: Enabled`);
 });
 
-module.exports = app; 
+module.exports = app;
