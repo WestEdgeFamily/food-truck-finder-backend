@@ -891,6 +891,73 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
+// ===== AUTOMATIC SCHEDULE MANAGEMENT =====
+// Function to check if a truck should be open based on current time and schedule
+function shouldTruckBeOpen(schedule) {
+  if (!schedule) return false;
+  
+  const now = new Date();
+  const currentDay = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][now.getDay()];
+  const currentTime = now.getHours() * 60 + now.getMinutes(); // minutes since midnight
+  
+  const daySchedule = schedule[currentDay];
+  if (!daySchedule || !daySchedule.isOpen) {
+    return false;
+  }
+  
+  // Parse open and close times (format: "HH:MM")
+  const openTimeParts = daySchedule.open.split(':');
+  const closeTimeParts = daySchedule.close.split(':');
+  const openTime = parseInt(openTimeParts[0]) * 60 + parseInt(openTimeParts[1]);
+  const closeTime = parseInt(closeTimeParts[0]) * 60 + parseInt(closeTimeParts[1]);
+  
+  // Handle overnight hours (e.g., open 22:00, close 02:00)
+  if (closeTime < openTime) {
+    return currentTime >= openTime || currentTime <= closeTime;
+  } else {
+    return currentTime >= openTime && currentTime <= closeTime;
+  }
+}
+
+// Function to update all truck statuses based on their schedules
+function updateTruckStatusesBasedOnSchedule() {
+  let updatedCount = 0;
+  
+  trucks.forEach(truck => {
+    if (truck.schedule) {
+      const shouldBeOpen = shouldTruckBeOpen(truck.schedule);
+      if (truck.isOpen !== shouldBeOpen) {
+        truck.isOpen = shouldBeOpen;
+        truck.lastUpdated = new Date().toISOString();
+        updatedCount++;
+        console.log(`📅 Auto-updated ${truck.name}: ${shouldBeOpen ? 'OPENED' : 'CLOSED'} based on schedule`);
+      }
+    }
+  });
+  
+  if (updatedCount > 0) {
+    saveData(TRUCKS_FILE, trucks);
+    console.log(`📅 Schedule check complete: ${updatedCount} trucks updated`);
+  }
+}
+
+// Run schedule check every 5 minutes
+setInterval(updateTruckStatusesBasedOnSchedule, 5 * 60 * 1000);
+
+// Run initial check on startup
+setTimeout(updateTruckStatusesBasedOnSchedule, 5000); // 5 seconds after startup
+
+// Add endpoint to manually trigger schedule update
+app.post('/api/trucks/update-schedules', (req, res) => {
+  console.log('🔄 Manual schedule update triggered');
+  updateTruckStatusesBasedOnSchedule();
+  res.json({ 
+    success: true, 
+    message: 'Schedule-based status update completed',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚚 Food Truck API Server running on port ${PORT}`);
@@ -898,6 +965,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🍔 Food trucks: ${trucks.length} loaded`);
   console.log(`👥 Users: ${users.length} loaded`);
   console.log(`❤️  Favorites system: Ready`);
+  console.log(`📅 Automatic schedule checking: Every 5 minutes`);
 });
 
 module.exports = app; 
