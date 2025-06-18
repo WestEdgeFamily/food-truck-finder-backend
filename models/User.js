@@ -41,4 +41,4 @@ const userSchema = new mongoose.Schema({
   // Removed complex profile fields not used in server.js
 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('User', userSchema); 
