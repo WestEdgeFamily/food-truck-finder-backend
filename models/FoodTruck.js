@@ -1,45 +1,95 @@
 const mongoose = require('mongoose');
 
+const menuItemSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    required: true
+  },
+  price: {
+    type: Number,
+    required: true
+  },
+  isAvailable: {
+    type: Boolean,
+    default: true
+  }
+});
+
+const scheduleSchema = new mongoose.Schema({
+  monday: {
+    open: String,
+    close: String,
+    isOpen: Boolean
+  },
+  tuesday: {
+    open: String,
+    close: String,
+    isOpen: Boolean
+  },
+  wednesday: {
+    open: String,
+    close: String,
+    isOpen: Boolean
+  },
+  thursday: {
+    open: String,
+    close: String,
+    isOpen: Boolean
+  },
+  friday: {
+    open: String,
+    close: String,
+    isOpen: Boolean
+  },
+  saturday: {
+    open: String,
+    close: String,
+    isOpen: Boolean
+  },
+  sunday: {
+    open: String,
+    close: String,
+    isOpen: Boolean
+  }
+});
+
 const foodTruckSchema = new mongoose.Schema({
-  id: { 
-    type: String, 
-    required: true, 
-    unique: true 
+  id: {
+    type: String,
+    required: true,
+    unique: true
   },
   name: {
     type: String,
-    required: true,
-    trim: true
+    required: true
   },
   businessName: {
-    type: String,
-    trim: true
+    type: String
   },
   description: {
     type: String,
     required: true
   },
   ownerId: {
-    type: String,  // Changed from ObjectId to String to match server.js
+    type: String,
     required: true
   },
-  cuisine: {  // Changed from cuisineTypes array to single cuisine string
+  cuisine: {
     type: String,
-    trim: true,
-    default: 'American'
+    required: true
   },
   image: {
     type: String
   },
-  // Removed phone field - no phone numbers in the app
   email: {
-    type: String,
-    trim: true,
-    lowercase: true
+    type: String
   },
   website: {
-    type: String,
-    trim: true
+    type: String
   },
   location: {
     latitude: {
@@ -49,30 +99,17 @@ const foodTruckSchema = new mongoose.Schema({
       type: Number
     },
     address: {
-      type: String,
-      trim: true
+      type: String
     }
   },
-  hours: {  // Added hours field used in server.js
-    type: String,
-    default: 'Hours to be set by owner'
+  hours: {
+    type: String
   },
-  schedule: {
-    type: mongoose.Schema.Types.Mixed
-  },
-  menu: [{
-    name: { type: String, required: true },
-    description: String,
-    price: { type: Number, required: true },
-    category: String,
-    image: String,
-    isAvailable: { type: Boolean, default: true }
-  }],
+  menu: [menuItemSchema],
+  schedule: scheduleSchema,
   rating: {
     type: Number,
-    default: 0,
-    min: 0,
-    max: 5
+    default: 0
   },
   reviewCount: {
     type: Number,
@@ -86,7 +123,6 @@ const foodTruckSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  // Added fields used in server.js
   createdAt: {
     type: Date,
     default: Date.now
@@ -95,20 +131,20 @@ const foodTruckSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  // POS Integration fields used in server.js
   posSettings: {
-    parentAccountId: String,
-    childAccounts: [String],
-    allowPosTracking: { type: Boolean, default: true },
-    posApiKey: String,
-    posWebhookUrl: String
+    childAccounts: [{
+      id: String,
+      name: String,
+      apiKey: String,
+      permissions: [String],
+      createdAt: String,
+      isActive: Boolean
+    }],
+    allowPosTracking: {
+      type: Boolean,
+      default: true
+    }
   }
 });
 
-// Index for location-based queries
-foodTruckSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
-
-// Index for text search - updated to use single cuisine field
-foodTruckSchema.index({ name: 'text', description: 'text', cuisine: 'text' });
-
-module.exports = mongoose.model('FoodTruck', foodTruckSchema); 
+module.exports = mongoose.model('FoodTruck', foodTruckSchema);
