@@ -91,6 +91,8 @@ async function initializeDefaultData() {
           cuisine: 'Korean',
           rating: 4.6,
           image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400',
+          email: 'info@cupbop.com',
+          website: 'www.cupbop.com',
           location: {
             latitude: 40.7608,
             longitude: -111.8910,
@@ -120,6 +122,8 @@ async function initializeDefaultData() {
           cuisine: 'Italian',
           rating: 4.4,
           image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400',
+          email: 'orders@thepie.com',
+          website: 'www.thepie.com',
           location: {
             latitude: 40.7505,
             longitude: -111.8652,
@@ -149,6 +153,8 @@ async function initializeDefaultData() {
           cuisine: 'Mexican',
           rating: 4.7,
           image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
+          email: 'mobile@rediguana.com',
+          website: 'www.rediguana.com',
           location: {
             latitude: 40.7831,
             longitude: -111.9044,
@@ -178,6 +184,8 @@ async function initializeDefaultData() {
           cuisine: 'American',
           rating: 4.3,
           image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400',
+          email: 'contact@crownburgers.com',
+          website: 'www.crownburgers.com',
           location: {
             latitude: 40.6892,
             longitude: -111.8315,
@@ -207,6 +215,8 @@ async function initializeDefaultData() {
           cuisine: 'Dessert',
           rating: 4.8,
           image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400',
+          email: 'hello@sillicecream.com',
+          website: 'www.sillicecream.com',
           location: {
             latitude: 40.7505,
             longitude: -111.8652,
@@ -997,4 +1007,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🎉 Data will now persist between restarts!`);
 });
 
-module.exports = app;
+module.exports = app; 
