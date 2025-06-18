@@ -111,4 +111,4 @@ foodTruckSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
 // Index for text search - updated to use single cuisine field
 foodTruckSchema.index({ name: 'text', description: 'text', cuisine: 'text' });
 
-module.exports = mongoose.model('FoodTruck', foodTruckSchema);
+module.exports = mongoose.model('FoodTruck', foodTruckSchema); 
