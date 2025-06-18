@@ -13,7 +13,6 @@ const foodTruckSchema = new mongoose.Schema({
   },
   businessName: {
     type: String,
-    required: true,
     trim: true
   },
   description: {
@@ -21,21 +20,18 @@ const foodTruckSchema = new mongoose.Schema({
     required: true
   },
   ownerId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,  // Changed from ObjectId to String to match server.js
     required: true
   },
-  cuisineTypes: [{
+  cuisine: {  // Changed from cuisineTypes array to single cuisine string
     type: String,
-    trim: true
-  }],
+    trim: true,
+    default: 'American'
+  },
   image: {
     type: String
   },
-  phone: {
-    type: String,
-    trim: true
-  },
+  // Removed phone field - no phone numbers in the app
   email: {
     type: String,
     trim: true,
@@ -56,6 +52,10 @@ const foodTruckSchema = new mongoose.Schema({
       type: String,
       trim: true
     }
+  },
+  hours: {  // Added hours field used in server.js
+    type: String,
+    default: 'Hours to be set by owner'
   },
   schedule: {
     type: mongoose.Schema.Types.Mixed
@@ -85,15 +85,30 @@ const foodTruckSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  // Added fields used in server.js
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  lastUpdated: {
+    type: Date,
+    default: Date.now
+  },
+  // POS Integration fields used in server.js
+  posSettings: {
+    parentAccountId: String,
+    childAccounts: [String],
+    allowPosTracking: { type: Boolean, default: true },
+    posApiKey: String,
+    posWebhookUrl: String
   }
-}, {
-  timestamps: true
 });
 
 // Index for location-based queries
 foodTruckSchema.index({ 'location.latitude': 1, 'location.longitude': 1 });
 
-// Index for text search
-foodTruckSchema.index({ name: 'text', description: 'text', cuisineTypes: 'text' });
+// Index for text search - updated to use single cuisine field
+foodTruckSchema.index({ name: 'text', description: 'text', cuisine: 'text' });
 
 module.exports = mongoose.model('FoodTruck', foodTruckSchema);
