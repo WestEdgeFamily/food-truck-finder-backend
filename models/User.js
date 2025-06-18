@@ -1,14 +1,10 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
-    _id: {
-     type: String,
-     unique: true,
-     sparse: true,
-     trim: true
-},
-
+  _id: {
+    type: String,
+    required: true
+  },
   email: {
     type: String,
     required: true,
@@ -19,6 +15,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true
+    // Note: Using plain text passwords to match server.js (not recommended for production)
   },
   name: {
     type: String,
@@ -30,73 +27,18 @@ const userSchema = new mongoose.Schema({
     enum: ['customer', 'owner'],
     required: true
   },
-  phone: {
+  // Removed phone field - no phone numbers in the app
+  businessName: {  // Added businessName field used in server.js
     type: String,
     trim: true
   },
-  // NEW: Add favorites array to store food truck IDs
-  favorites: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'FoodTruck'
-  }],
-  // Profile information
-  profileImage: {
-    type: String
-  },
-  address: {
-    street: String,
-    city: String,
-    state: String,
-    zipCode: String
-  },
-  // Notification preferences
-  notificationPreferences: {
-    email: {
-      type: Boolean,
-      default: true
-    },
-    push: {
-      type: Boolean,
-      default: true
-    },
-    locationBased: {
-      type: Boolean,
-      default: true
-    }
+  createdAt: {  // Added createdAt field used in server.js
+    type: Date,
+    default: Date.now
   }
-}, {
-  timestamps: true // Automatically add createdAt and updatedAt
+  // Removed favorites array - using separate Favorite model instead
+  // Removed bcrypt password hashing - using plain text to match server.js
+  // Removed complex profile fields not used in server.js
 });
 
-// Pre-save middleware to hash password
-userSchema.pre('save', async function(next) {
-  // Only hash password if it's new or modified
-  if (!this.isModified('password')) return next();
-  
-  try {
-    const saltRounds = 10;
-    this.password = await bcrypt.hash(this.password, saltRounds);
-    next();
-  } catch (error) {
-    next(error);
-  }
-});
-
-// Method to compare password
-userSchema.methods.comparePassword = async function(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
-};
-
-// Method to get public profile (without password)
-userSchema.methods.toPublicJSON = function() {
-  const user = this.toObject();
-  delete user.password;
-  return user;
-};
-
-// Static method to find user by email
-userSchema.statics.findByEmail = function(email) {
-  return this.findOne({ email: email.toLowerCase() });
-};
-
-module.exports = mongoose.model('User', userSchema); 
+module.exports = mongoose.model('User', userSchema);
