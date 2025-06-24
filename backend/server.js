@@ -1158,23 +1158,44 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
-// Email Change Routes - FIX FOR BUG #7
+// Email Change Routes - ENHANCED with flexible user lookup
 app.post('/api/users/change-email', async (req, res) => {
+  console.log('\n📧 Email change request received');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  
   try {
     const { userId, newEmail, password } = req.body;
     
-    console.log(`📧 Email change request: ${userId} -> ${newEmail}`);
-    
     if (!userId || !newEmail || !password) {
-      return res.status(400).json({ success: false, message: 'User ID, new email, and password are required' });
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: userId, newEmail, password'
+      });
     }
     
-    // Verify user exists and password is correct
-    const user = await User.findOne({ _id: userId, password });
+    // Use flexible user finder
+    const user = await findUserFlexibly(userId);
     if (!user) {
-      console.log(`❌ Email change failed: Invalid user or password`);
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+      console.log(`❌ User not found for identifier: ${userId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
+    
+    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
+    
+    // Verify password
+    if (user.password !== password) {
+      console.log('❌ Password is incorrect');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    console.log('✅ Password verified');
     
     // Check if new email is already in use
     const existingUser = await User.findOne({ email: newEmail });
@@ -1227,7 +1248,8 @@ app.post('/api/users/verify-email-change', async (req, res) => {
     const userId = tokenParts[2];
     console.log(`📧 Extracted user ID from token: ${userId}`);
     
-    const user = await User.findOne({ _id: userId });
+    // Use flexible user finder
+    const user = await findUserFlexibly(userId);
     console.log(`📧 User found: ${user ? user.email : 'NOT FOUND'}`);
     
     if (!user) {
@@ -1279,70 +1301,146 @@ app.post('/api/users/verify-email-change', async (req, res) => {
   }
 });
 
-// Password Change Route - FIX FOR PASSWORD PERSISTENCE ISSUE
+// Enhanced user finder function that handles ID mismatches
+async function findUserFlexibly(identifier) {
+  console.log(`🔍 Searching for user with identifier: ${identifier}`);
+  
+  // Try exact userId match first
+  let user = await User.findOne({ userId: identifier });
+  if (user) {
+    console.log(`✅ Found user by exact userId match: ${user.userId}`);
+    return user;
+  }
+  
+  // Try _id field match (for default users)
+  user = await User.findOne({ _id: identifier });
+  if (user) {
+    console.log(`✅ Found user by _id match: ${user._id}`);
+    return user;
+  }
+  
+  // Try email match
+  user = await User.findOne({ email: identifier });
+  if (user) {
+    console.log(`✅ Found user by email match: ${user.email}`);
+    return user;
+  }
+  
+  // Try partial userId match (for timestamp-based IDs)
+  user = await User.findOne({ userId: { $regex: identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } });
+  if (user) {
+    console.log(`✅ Found user by partial userId match: ${user.userId}`);
+    return user;
+  }
+  
+  // Try MongoDB ObjectId if it looks like one
+  if (identifier.match(/^[0-9a-fA-F]{24}$/)) {
+    try {
+      user = await User.findById(identifier);
+      if (user) {
+        console.log(`✅ Found user by ObjectId match: ${user._id}`);
+        return user;
+      }
+    } catch (err) {
+      console.log(`❌ Invalid ObjectId: ${identifier}`);
+    }
+  }
+  
+  console.log(`❌ No user found for identifier: ${identifier}`);
+  return null;
+}
+
+// Change Password endpoint - ENHANCED with flexible user lookup
 app.post('/api/users/change-password', async (req, res) => {
+  console.log('\n🔐 Password change request received');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  
   try {
     const { userId, currentPassword, newPassword } = req.body;
     
-    console.log(`🔐 Password change request for user: ${userId}`);
-    console.log(`🔐 Current password provided: ${currentPassword ? '[PROVIDED]' : '[MISSING]'}`);
-    console.log(`🔐 New password provided: ${newPassword ? '[PROVIDED]' : '[MISSING]'}`);
-    
     if (!userId || !currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'User ID, current password, and new password are required' });
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: userId, currentPassword, newPassword'
+      });
     }
     
-    // First, find the user to verify they exist and password is correct
-    const user = await User.findOne({ _id: userId });
-    console.log(`🔐 User found: ${user ? user.email : 'NOT FOUND'}`);
+    // Use flexible user finder
+    const user = await findUserFlexibly(userId);
     
     if (!user) {
-      console.log(`❌ Password change failed: User not found with ID: ${userId}`);
-      return res.status(404).json({ success: false, message: 'User not found' });
+      console.log(`❌ User not found for identifier: ${userId}`);
+      
+      // Debug: Show all users to help identify the issue
+      const allUsers = await User.find({}, 'userId _id email role').limit(10);
+      console.log('📋 Available users in database:');
+      allUsers.forEach(u => {
+        console.log(`   userId: ${u.userId || 'undefined'} | _id: ${u._id} | email: ${u.email} | role: ${u.role}`);
+      });
+      
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+        debug: {
+          searchedFor: userId,
+          availableUsers: allUsers.map(u => ({
+            userId: u.userId,
+            _id: u._id.toString(),
+            email: u.email
+          }))
+        }
+      });
     }
     
-    console.log(`🔐 Stored password: ${user.password}`);
-    console.log(`🔐 Provided current password: ${currentPassword}`);
-    console.log(`🔐 Passwords match: ${user.password === currentPassword}`);
+    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
     
     // Verify current password
     if (user.password !== currentPassword) {
-      console.log(`❌ Password change failed: Current password incorrect for user: ${user.email}`);
-      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+      console.log('❌ Current password is incorrect');
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
     }
     
-    // Update password using findOneAndUpdate for better control
-    const updateResult = await User.findOneAndUpdate(
-      { _id: userId },
+    console.log('✅ Current password verified');
+    
+    // Update password using both userId and _id for maximum compatibility
+    const updateQuery = user.userId ? { userId: user.userId } : { _id: user._id };
+    const updatedUser = await User.findOneAndUpdate(
+      updateQuery,
       { password: newPassword },
       { new: true }
     );
     
-    console.log(`🔐 Update result: ${updateResult ? 'SUCCESS' : 'FAILED'}`);
-    console.log(`🔐 New password in database: ${updateResult ? updateResult.password : 'N/A'}`);
-    
-    if (updateResult) {
-      console.log(`✅ Password change successful for user: ${user.email}`);
-      console.log(`✅ Password updated from "${currentPassword}" to "${newPassword}"`);
-      
-      res.json({
-        success: true,
-        message: 'Password changed successfully',
-        debug: {
-          userId: userId,
-          oldPassword: currentPassword,
-          newPassword: newPassword,
-          updatedPassword: updateResult.password
-        }
+    if (!updatedUser) {
+      console.log('❌ Failed to update password in database');
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update password'
       });
-    } else {
-      console.log(`❌ Password update failed for user: ${user.email}`);
-      res.status(500).json({ success: false, message: 'Failed to update password in database' });
     }
     
+    console.log('✅ Password updated successfully in database');
+    
+    res.json({
+      success: true,
+      message: 'Password changed successfully',
+      user: {
+        userId: updatedUser.userId || updatedUser._id.toString(),
+        email: updatedUser.email,
+        name: updatedUser.name
+      }
+    });
+    
   } catch (error) {
-    console.error('❌ Change password error:', error);
-    res.status(500).json({ success: false, message: 'Server error during password change' });
+    console.error('❌ Password change error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
   }
 });
 

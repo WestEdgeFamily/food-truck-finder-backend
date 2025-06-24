@@ -41,6 +41,21 @@ let foodTrucks = [
       longitude: -73.9851,
       address: '123 Broadway, New York, NY'
     },
+    menu: [
+      { id: '1', name: 'Carne Asada Taco', price: 4.99, description: 'Grilled beef with onions, cilantro, and salsa' },
+      { id: '2', name: 'Al Pastor Taco', price: 4.99, description: 'Marinated pork with pineapple and onions' },
+      { id: '3', name: 'Carnitas Burrito', price: 12.99, description: 'Slow-cooked pork with rice, beans, and cheese' },
+      { id: '4', name: 'Guacamole & Chips', price: 7.99, description: 'Fresh avocado dip with crispy tortilla chips' }
+    ],
+    schedule: {
+      monday: { open: '10:00', close: '22:00', isOpen: true },
+      tuesday: { open: '10:00', close: '22:00', isOpen: true },
+      wednesday: { open: '10:00', close: '22:00', isOpen: true },
+      thursday: { open: '10:00', close: '22:00', isOpen: true },
+      friday: { open: '10:00', close: '23:00', isOpen: true },
+      saturday: { open: '10:00', close: '23:00', isOpen: true },
+      sunday: { open: '11:00', close: '21:00', isOpen: true }
+    },
     rating: 4.5,
     reviewCount: 127,
     isOpen: true,
@@ -60,6 +75,21 @@ let foodTrucks = [
       latitude: 40.7505,
       longitude: -73.9934,
       address: '456 5th Avenue, New York, NY'
+    },
+    menu: [
+      { id: '1', name: 'Classic Burger', price: 14.99, description: 'Beef patty with lettuce, tomato, onion, and special sauce' },
+      { id: '2', name: 'BBQ Bacon Burger', price: 17.99, description: 'Beef patty with BBQ sauce, bacon, and onion rings' },
+      { id: '3', name: 'Veggie Burger', price: 13.99, description: 'Plant-based patty with avocado and sprouts' },
+      { id: '4', name: 'Sweet Potato Fries', price: 6.99, description: 'Crispy sweet potato fries with chipotle aioli' }
+    ],
+    schedule: {
+      monday: { open: '11:00', close: '21:00', isOpen: true },
+      tuesday: { open: '11:00', close: '21:00', isOpen: true },
+      wednesday: { open: '11:00', close: '21:00', isOpen: true },
+      thursday: { open: '11:00', close: '21:00', isOpen: true },
+      friday: { open: '11:00', close: '22:00', isOpen: true },
+      saturday: { open: '11:00', close: '22:00', isOpen: true },
+      sunday: { open: '12:00', close: '20:00', isOpen: true }
     },
     rating: 4.2,
     reviewCount: 89,
@@ -81,6 +111,21 @@ let foodTrucks = [
       longitude: -73.9776,
       address: '789 Pizza Street, New York, NY'
     },
+    menu: [
+      { id: '1', name: 'Margherita Pizza', price: 16.99, description: 'Fresh mozzarella, tomato sauce, and basil' },
+      { id: '2', name: 'Pepperoni Pizza', price: 19.99, description: 'Classic pepperoni with mozzarella cheese' },
+      { id: '3', name: 'Quattro Stagioni', price: 22.99, description: 'Four seasons pizza with ham, mushrooms, artichokes, and olives' },
+      { id: '4', name: 'Caesar Salad', price: 12.99, description: 'Romaine lettuce with parmesan and croutons' }
+    ],
+    schedule: {
+      monday: { open: '12:00', close: '21:00', isOpen: true },
+      tuesday: { open: '12:00', close: '21:00', isOpen: true },
+      wednesday: { open: '12:00', close: '21:00', isOpen: true },
+      thursday: { open: '12:00', close: '21:00', isOpen: true },
+      friday: { open: '12:00', close: '22:00', isOpen: true },
+      saturday: { open: '12:00', close: '22:00', isOpen: true },
+      sunday: { open: '12:00', close: '20:00', isOpen: false }
+    },
     rating: 4.7,
     reviewCount: 203,
     isOpen: false,
@@ -101,6 +146,21 @@ let foodTrucks = [
       longitude: -73.9857,
       address: '321 Korean Way, New York, NY'
     },
+    menu: [
+      { id: '1', name: 'Bulgogi Bowl', price: 15.99, description: 'Marinated beef with rice and vegetables' },
+      { id: '2', name: 'Korean BBQ Tacos', price: 13.99, description: 'Fusion tacos with Korean marinated meat' },
+      { id: '3', name: 'Kimchi Fried Rice', price: 12.99, description: 'Spicy fermented cabbage with fried rice' },
+      { id: '4', name: 'Korean Corn Dog', price: 8.99, description: 'Crispy hot dog with Korean-style coating' }
+    ],
+    schedule: {
+      monday: { open: '11:00', close: '21:00', isOpen: true },
+      tuesday: { open: '11:00', close: '21:00', isOpen: true },
+      wednesday: { open: '11:00', close: '21:00', isOpen: true },
+      thursday: { open: '11:00', close: '21:00', isOpen: true },
+      friday: { open: '11:00', close: '22:00', isOpen: true },
+      saturday: { open: '11:00', close: '22:00', isOpen: true },
+      sunday: { open: '12:00', close: '20:00', isOpen: true }
+    },
     rating: 4.6,
     reviewCount: 156,
     isOpen: true,
@@ -120,6 +180,21 @@ let foodTrucks = [
       latitude: 40.7530,
       longitude: -73.9900,
       address: '654 Dessert Lane, New York, NY'
+    },
+    menu: [
+      { id: '1', name: 'Artisan Ice Cream', price: 6.99, description: 'Choose from vanilla, chocolate, or strawberry' },
+      { id: '2', name: 'Chocolate Lava Cake', price: 8.99, description: 'Warm chocolate cake with molten center' },
+      { id: '3', name: 'Churros with Dulce de Leche', price: 7.99, description: 'Crispy churros with caramel sauce' },
+      { id: '4', name: 'Fresh Fruit Parfait', price: 5.99, description: 'Yogurt with seasonal fruits and granola' }
+    ],
+    schedule: {
+      monday: { open: '12:00', close: '21:00', isOpen: true },
+      tuesday: { open: '12:00', close: '21:00', isOpen: true },
+      wednesday: { open: '12:00', close: '21:00', isOpen: true },
+      thursday: { open: '12:00', close: '21:00', isOpen: true },
+      friday: { open: '12:00', close: '22:00', isOpen: true },
+      saturday: { open: '10:00', close: '22:00', isOpen: true },
+      sunday: { open: '10:00', close: '21:00', isOpen: true }
     },
     rating: 4.8,
     reviewCount: 92,
@@ -194,13 +269,33 @@ app.post('/api/auth/register', (req, res) => {
 
 // Food Truck Routes
 app.get('/api/trucks', (req, res) => {
-  res.json(foodTrucks);
+  // Update open/closed status for all trucks based on current time
+  const updatedTrucks = foodTrucks.map(truck => ({
+    ...truck,
+    isOpen: isCurrentlyOpen(truck.schedule)
+  }));
+  res.json(updatedTrucks);
 });
 
 app.get('/api/trucks/:id', (req, res) => {
   const truck = foodTrucks.find(t => t._id === req.params.id);
   if (truck) {
-    res.json(truck);
+    // Update open/closed status based on current time
+    const updatedTruck = {
+      ...truck,
+      isOpen: isCurrentlyOpen(truck.schedule)
+    };
+    res.json(updatedTruck);
+  } else {
+    res.status(404).json({ message: 'Food truck not found' });
+  }
+});
+
+// Get menu for a specific food truck
+app.get('/api/trucks/:id/menu', (req, res) => {
+  const truck = foodTrucks.find(t => t._id === req.params.id);
+  if (truck) {
+    res.json({ success: true, menu: truck.menu || [] });
   } else {
     res.status(404).json({ message: 'Food truck not found' });
   }
@@ -306,6 +401,31 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Helper function to check if a truck is currently open
+function isCurrentlyOpen(schedule) {
+  const now = new Date();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const currentDay = dayNames[now.getDay()];
+  const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  
+  const todaySchedule = schedule[currentDay];
+  if (!todaySchedule || !todaySchedule.isOpen) {
+    return false;
+  }
+  
+  // Convert time strings to minutes for proper comparison
+  const timeToMinutes = (timeStr) => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  
+  const currentMinutes = timeToMinutes(currentTime);
+  const openMinutes = timeToMinutes(todaySchedule.open);
+  const closeMinutes = timeToMinutes(todaySchedule.close);
+  
+  return currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
+}
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
