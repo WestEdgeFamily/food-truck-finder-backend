@@ -3,7 +3,6 @@ class User {
   final String name;
   final String email;
   final String role; // 'customer' or 'owner'
-  final String? phone;
   final String? businessName; // For food truck owners
   final bool isActive;
   final DateTime? createdAt;
@@ -13,19 +12,29 @@ class User {
     required this.name,
     required this.email,
     required this.role,
-    this.phone,
     this.businessName,
     this.isActive = true,
     this.createdAt,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    // ROBUST ID HANDLING: Try multiple possible ID fields and pick the first non-empty one
+    String userId = '';
+    
+    // Priority order: id, _id, userId
+    if (json['id'] != null && json['id'].toString().isNotEmpty) {
+      userId = json['id'].toString();
+    } else if (json['_id'] != null && json['_id'].toString().isNotEmpty) {
+      userId = json['_id'].toString();
+    } else if (json['userId'] != null && json['userId'].toString().isNotEmpty) {
+      userId = json['userId'].toString();
+    }
+    
     return User(
-      id: json['_id'] ?? json['id'] ?? '',
+      id: userId,
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       role: json['role'] ?? 'customer',
-      phone: json['phone'] ?? json['phoneNumber'],
       businessName: json['businessName'],
       isActive: json['isActive'] ?? true,
       createdAt: json['createdAt'] != null 
@@ -40,7 +49,6 @@ class User {
       'name': name,
       'email': email,
       'role': role,
-      'phone': phone,
       'businessName': businessName,
       'isActive': isActive,
       'createdAt': createdAt?.toIso8601String(),
@@ -52,7 +60,6 @@ class User {
     String? name,
     String? email,
     String? role,
-    String? phone,
     String? businessName,
     bool? isActive,
     DateTime? createdAt,
@@ -62,7 +69,6 @@ class User {
       name: name ?? this.name,
       email: email ?? this.email,
       role: role ?? this.role,
-      phone: phone ?? this.phone,
       businessName: businessName ?? this.businessName,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,

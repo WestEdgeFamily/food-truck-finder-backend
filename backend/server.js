@@ -405,13 +405,27 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await User.findOne({ email, password, role });
     
     if (user) {
+      // Ensure userId field matches _id for consistency
+      if (!user.userId || user.userId !== user._id.toString()) {
+        console.log(`🔧 Fixing userId field for ${email}`);
+        await User.findByIdAndUpdate(user._id, { userId: user._id.toString() });
+        user.userId = user._id.toString();
+      }
+      
       console.log(`✅ Login successful for: ${email}`);
+      console.log(`🆔 User ID: ${user._id}`);
+      
+      // CONSISTENT TOKEN: Always use MongoDB _id
       const token = `token_${user._id}_${Date.now()}`;
+      
+      // CONSISTENT RESPONSE: Always return _id as the main identifier
       res.json({
         success: true,
         token: token,
         user: {
-          _id: user._id,
+          _id: user._id.toString(),        // MongoDB _id
+          id: user._id.toString(),         // Same as _id for mobile app compatibility  
+          userId: user._id.toString(),     // Same as _id for legacy compatibility
           name: user.name,
           email: user.email,
           role: user.role,
@@ -441,8 +455,9 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
     
+    // Create new user - LET MONGODB GENERATE THE _id, then use it consistently
     const newUser = new User({
-      _id: `user_${Date.now()}`,
+      // DON'T set _id manually, let MongoDB generate it
       name,
       email,
       password,
@@ -451,14 +466,23 @@ app.post('/api/auth/register', async (req, res) => {
       createdAt: new Date()
     });
     
-    await newUser.save();
-    console.log(`👤 New user created: ${email}`);
+    // Save user first to get the MongoDB-generated _id
+    const savedUser = await newUser.save();
+    
+    // NOW set userId to match _id for consistency
+    savedUser.userId = savedUser._id.toString();
+    await savedUser.save();
+    
+    console.log(`✅ User created successfully: ${email}`);
+    console.log(`🆔 User ID: ${savedUser._id}`);
+    console.log(`🆔 User userId field: ${savedUser.userId}`);
     
     let foodTruckId = null;
     
-    // Auto-create food truck for owner registrations
+    // Auto-create food truck for owners
     if (role === 'owner' && businessName) {
       const newTruck = new FoodTruck({
+        // Use a timestamp-based custom ID for trucks (different from user IDs)
         id: `truck_${Date.now()}`,
         name: businessName,
         businessName: businessName,
@@ -473,7 +497,8 @@ app.post('/api/auth/register', async (req, res) => {
         },
         hours: 'Hours to be set by owner',
         menu: [],
-        ownerId: newUser._id,
+        // IMPORTANT: Use the MongoDB _id as ownerId
+        ownerId: savedUser._id.toString(),
         isOpen: false,
         createdAt: new Date(),
         lastUpdated: new Date(),
@@ -489,10 +514,10 @@ app.post('/api/auth/register', async (req, res) => {
         },
         // POS Integration fields
         posSettings: {
-          parentAccountId: newUser._id,
+          parentAccountId: savedUser._id.toString(),
           childAccounts: [],
           allowPosTracking: true,
-          posApiKey: `pos_${newUser._id}_${Date.now()}`,
+          posApiKey: `pos_${savedUser._id}_${Date.now()}`,
           posWebhookUrl: null
         }
       });
@@ -502,26 +527,25 @@ app.post('/api/auth/register', async (req, res) => {
       console.log(`🚚 Auto-created food truck for owner: ${businessName} (ID: ${foodTruckId})`);
     }
     
-    const token = `token_${newUser._id}_${Date.now()}`;
-    const response = {
+    // CONSISTENT TOKEN: Always use MongoDB _id
+    const token = `token_${savedUser._id}_${Date.now()}`;
+    
+    // CONSISTENT RESPONSE: Always return _id as the main identifier
+    res.json({
       success: true,
       token: token,
       user: {
-        _id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-        businessName: newUser.businessName
+        _id: savedUser._id.toString(),        // MongoDB _id
+        id: savedUser._id.toString(),         // Same as _id for mobile app compatibility
+        userId: savedUser._id.toString(),     // Same as _id for legacy compatibility
+        name: savedUser.name,
+        email: savedUser.email,
+        role: savedUser.role,
+        businessName: savedUser.businessName,
+        foodTruckId: foodTruckId
       }
-    };
+    });
     
-    // Include food truck ID for owners
-    if (foodTruckId) {
-      response.foodTruckId = foodTruckId;
-    }
-    
-    console.log(`✅ Registration successful for: ${email}`);
-    res.json(response);
   } catch (error) {
     console.error('❌ Registration error:', error);
     res.status(500).json({ success: false, message: 'Server error during registration' });
@@ -581,23 +605,38 @@ app.get('/api/trucks/:id/menu', async (req, res) => {
   }
 });
 
+// ===== LOCATION TRACKING ROUTES =====
+// Update truck location
 app.put('/api/trucks/:id/location', async (req, res) => {
   try {
+    const { id } = req.params;
     const { latitude, longitude, address } = req.body;
     
+    console.log(`📍 Location update request for truck ${id}`);
+    console.log(`📍 New location: ${latitude}, ${longitude} - ${address}`);
+    
     const truck = await FoodTruck.findOneAndUpdate(
-      { id: req.params.id },
-      {
-        location: { latitude, longitude, address },
+      { id },
+      { 
+        location: {
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          address: address || truck?.location?.address || 'Address not provided'
+        },
         lastUpdated: new Date()
       },
       { new: true }
     );
     
     if (truck) {
-      console.log(`📍 Location updated for truck ${req.params.id}: ${latitude}, ${longitude}`);
-      res.json({ success: true, message: 'Location updated', truck });
+      console.log(`✅ Location updated for ${truck.name}`);
+      res.json({ 
+        success: true, 
+        message: 'Location updated successfully',
+        location: truck.location 
+      });
     } else {
+      console.log(`❌ Truck not found: ${id}`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
@@ -606,104 +645,33 @@ app.put('/api/trucks/:id/location', async (req, res) => {
   }
 });
 
-app.get('/api/trucks/search', async (req, res) => {
-  try {
-    const query = req.query.q?.toLowerCase() || '';
-    const trucks = await FoodTruck.find({
-      $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { description: { $regex: query, $options: 'i' } },
-        { cuisine: { $regex: query, $options: 'i' } }
-      ]
-    });
-    console.log(`🔍 Search for "${query}" found ${trucks.length} trucks`);
-    res.json(trucks);
-  } catch (error) {
-    console.error('❌ Error searching trucks:', error);
-    res.status(500).json({ message: 'Error searching food trucks' });
-  }
-});
-
-app.get('/api/trucks/nearby', async (req, res) => {
-  try {
-    const { lat, lng, radius = 5 } = req.query;
-    // For simplicity, return all trucks (in real app, calculate distance)
-    const trucks = await FoodTruck.find();
-    console.log(`📍 Nearby search: lat=${lat}, lng=${lng}, radius=${radius}km`);
-    res.json(trucks);
-  } catch (error) {
-    console.error('❌ Error fetching nearby trucks:', error);
-    res.status(500).json({ message: 'Error fetching nearby trucks' });
-  }
-});
-
-// Add new food truck (for owners)
-app.post('/api/trucks', async (req, res) => {
-  try {
-    const newTruck = new FoodTruck({
-      id: `truck_${Date.now()}`,
-      ...req.body,
-      createdAt: new Date(),
-      lastUpdated: new Date(),
-      rating: 0,
-      reviewCount: 0
-    });
-    
-    await newTruck.save();
-    console.log(`🚚 New truck created: ${newTruck.name}`);
-    res.json({ success: true, truck: newTruck });
-  } catch (error) {
-    console.error('❌ Error creating truck:', error);
-    res.status(500).json({ message: 'Error creating food truck' });
-  }
-});
-
-// Update food truck (for owners)
-app.put('/api/trucks/:id', async (req, res) => {
-  try {
-    const updates = {
-      ...req.body,
-      lastUpdated: new Date()
-    };
-    
-    const truck = await FoodTruck.findOneAndUpdate(
-      { id: req.params.id },
-      updates,
-      { new: true }
-    );
-    
-    if (truck) {
-      console.log(`✅ Updated food truck: ${truck.name} (ID: ${req.params.id})`);
-      res.json({ success: true, truck });
-    } else {
-      console.log(`❌ Truck ${req.params.id} not found for update`);
-      res.status(404).json({ message: 'Food truck not found' });
-    }
-  } catch (error) {
-    console.error('❌ Error updating truck:', error);
-    res.status(500).json({ message: 'Error updating food truck' });
-  }
-});
-
-// Update food truck cover photo
+// ===== COVER PHOTO AND IMAGE ROUTES =====
+// Update truck cover photo
 app.put('/api/trucks/:id/cover-photo', async (req, res) => {
   try {
     const { id } = req.params;
-    const { imageUrl } = req.body;
+    const { imageUrl, imageData } = req.body;
     
-    console.log(`Updating cover photo for truck ${id} with URL: ${imageUrl}`);
+    console.log(`🖼️ Cover photo update request for truck ${id}`);
     
     const truck = await FoodTruck.findOneAndUpdate(
       { id },
-      { image: imageUrl, lastUpdated: new Date() },
+      { 
+        image: imageUrl || imageData || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400',
+        lastUpdated: new Date()
+      },
       { new: true }
     );
     
     if (truck) {
-      console.log(`Successfully updated cover photo for truck ${id}`);
-      res.json({ success: true, message: 'Cover photo updated', truck });
+      console.log(`✅ Cover photo updated for ${truck.name}`);
+      res.json({ 
+        success: true, 
+        message: 'Cover photo updated successfully',
+        image: truck.image 
+      });
     } else {
-      console.log(`Truck ${id} not found`);
+      console.log(`❌ Truck not found: ${id}`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
@@ -712,47 +680,43 @@ app.put('/api/trucks/:id/cover-photo', async (req, res) => {
   }
 });
 
-// Get food truck cover photo
-app.get('/api/trucks/:id/cover-photo', async (req, res) => {
+// ===== ENHANCED POS ROUTES WITH USER ID HANDLING =====
+// Get POS settings for owner - ENHANCED with flexible user lookup
+app.get('/api/trucks/:truckId/pos-settings', async (req, res) => {
   try {
-    const { id } = req.params;
-    const truck = await FoodTruck.findOne({ id });
+    const { truckId } = req.params;
     
-    if (truck) {
-      res.json({ imageUrl: truck.image || null });
-    } else {
-      res.status(404).json({ message: 'Food truck not found' });
+    console.log(`🔧 POS settings request for truck: ${truckId}`);
+    
+    // Find truck by ID
+    let truck = await FoodTruck.findOne({ id: truckId });
+    
+    // Also try finding by MongoDB _id if not found by custom id
+    if (!truck && truckId.match(/^[0-9a-fA-F]{24}$/)) {
+      truck = await FoodTruck.findById(truckId);
     }
-  } catch (error) {
-    console.error('❌ Error fetching cover photo:', error);
-    res.status(500).json({ message: 'Error fetching cover photo' });
-  }
-});
-
-// ===== MENU MANAGEMENT ROUTES =====
-// Update menu items for a food truck
-app.put('/api/trucks/:id/menu', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { menu } = req.body;
     
-    const truck = await FoodTruck.findOneAndUpdate(
-      { id },
-      { 
-        menu: menu || [],
-        lastUpdated: new Date()
-      },
-      { new: true }
-    );
-    
-    if (truck) {
-      res.json({ success: true, message: 'Menu updated', menu: truck.menu });
-    } else {
-      res.status(404).json({ message: 'Food truck not found' });
+    if (!truck) {
+      console.log(`❌ Truck not found: ${truckId}`);
+      return res.status(404).json({ message: 'Food truck not found' });
     }
+    
+    const posSettings = truck.posSettings || {
+      parentAccountId: truck.ownerId,
+      childAccounts: [],
+      allowPosTracking: true,
+      posApiKey: `pos_${truck.ownerId}_${Date.now()}`,
+      posWebhookUrl: null
+    };
+    
+    console.log(`✅ POS settings found for ${truck.name}`);
+    res.json({
+      success: true,
+      posSettings: posSettings
+    });
   } catch (error) {
-    console.error('❌ Error updating menu:', error);
-    res.status(500).json({ message: 'Error updating menu' });
+    console.error('❌ Error fetching POS settings:', error);
+    res.status(500).json({ message: 'Error fetching POS settings' });
   }
 });
 
@@ -1441,6 +1405,136 @@ app.post('/api/users/change-password', async (req, res) => {
       message: 'Internal server error',
       error: error.message
     });
+  }
+});
+
+// Search food trucks
+app.get('/api/trucks/search', async (req, res) => {
+  try {
+    const query = req.query.q?.toLowerCase() || '';
+    const trucks = await FoodTruck.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { cuisine: { $regex: query, $options: 'i' } }
+      ]
+    });
+    console.log(`🔍 Search for "${query}" found ${trucks.length} trucks`);
+    res.json(trucks);
+  } catch (error) {
+    console.error('❌ Error searching trucks:', error);
+    res.status(500).json({ message: 'Error searching food trucks' });
+  }
+});
+
+// Get nearby food trucks
+app.get('/api/trucks/nearby', async (req, res) => {
+  try {
+    const { lat, lng, radius = 5 } = req.query;
+    // For simplicity, return all trucks (in real app, calculate distance)
+    const trucks = await FoodTruck.find();
+    console.log(`📍 Nearby search: lat=${lat}, lng=${lng}, radius=${radius}km`);
+    res.json(trucks);
+  } catch (error) {
+    console.error('❌ Error fetching nearby trucks:', error);
+    res.status(500).json({ message: 'Error fetching nearby trucks' });
+  }
+});
+
+// Add new food truck (for owners)
+app.post('/api/trucks', async (req, res) => {
+  try {
+    const newTruck = new FoodTruck({
+      id: `truck_${Date.now()}`,
+      ...req.body,
+      createdAt: new Date(),
+      lastUpdated: new Date(),
+      rating: 0,
+      reviewCount: 0
+    });
+    
+    await newTruck.save();
+    console.log(`🚚 New truck created: ${newTruck.name}`);
+    res.json({ success: true, truck: newTruck });
+  } catch (error) {
+    console.error('❌ Error creating truck:', error);
+    res.status(500).json({ message: 'Error creating food truck' });
+  }
+});
+
+// Update food truck (for owners)
+app.put('/api/trucks/:id', async (req, res) => {
+  try {
+    const updates = {
+      ...req.body,
+      lastUpdated: new Date()
+    };
+    
+    const truck = await FoodTruck.findOneAndUpdate(
+      { id: req.params.id },
+      updates,
+      { new: true }
+    );
+    
+    if (truck) {
+      console.log(`✅ Updated food truck: ${truck.name} (ID: ${req.params.id})`);
+      res.json({ success: true, truck });
+    } else {
+      console.log(`❌ Truck ${req.params.id} not found for update`);
+      res.status(404).json({ message: 'Food truck not found' });
+    }
+  } catch (error) {
+    console.error('❌ Error updating truck:', error);
+    res.status(500).json({ message: 'Error updating food truck' });
+  }
+});
+
+// Get food truck cover photo
+app.get('/api/trucks/:id/cover-photo', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const truck = await FoodTruck.findOne({ id });
+    
+    if (truck) {
+      res.json({ imageUrl: truck.image || null });
+    } else {
+      res.status(404).json({ message: 'Food truck not found' });
+    }
+  } catch (error) {
+    console.error('❌ Error fetching cover photo:', error);
+    res.status(500).json({ message: 'Error fetching cover photo' });
+  }
+});
+
+// ===== MENU MANAGEMENT ROUTES =====
+// Update menu items for a food truck
+app.put('/api/trucks/:id/menu', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { menu } = req.body;
+    
+    console.log(`🍽️ Menu update request for truck ${id}`);
+    console.log(`🍽️ Menu items: ${menu?.length || 0}`);
+    
+    const truck = await FoodTruck.findOneAndUpdate(
+      { id },
+      { 
+        menu: menu || [],
+        lastUpdated: new Date()
+      },
+      { new: true }
+    );
+    
+    if (truck) {
+      console.log(`✅ Menu updated for ${truck.name} - ${truck.menu.length} items`);
+      res.json({ success: true, message: 'Menu updated', menu: truck.menu });
+    } else {
+      console.log(`❌ Truck not found: ${id}`);
+      res.status(404).json({ message: 'Food truck not found' });
+    }
+  } catch (error) {
+    console.error('❌ Error updating menu:', error);
+    res.status(500).json({ message: 'Error updating menu' });
   }
 });
 
