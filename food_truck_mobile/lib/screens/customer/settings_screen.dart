@@ -327,17 +327,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // FIX FOR BUG #7 - Actually call the API
                   final authProvider = Provider.of<AuthProvider>(context, listen: false);
                   if (authProvider.user != null) {
-                    await ApiService.changeEmail(
+                    final response = await ApiService.changeEmail(
                       authProvider.user!.id,
                       newEmailController.text,
                       passwordController.text,
                     );
                     
+                    // If successful, update the user's email immediately in the UI
+                    if (response['success'] == true) {
+                      await authProvider.updateUserEmail(newEmailController.text);
+                    }
+                    
                     // Show success message
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Email change request sent to ${newEmailController.text}'),
+                          content: Text('Email changed successfully to ${newEmailController.text}'),
                           backgroundColor: Colors.green,
                           duration: const Duration(seconds: 4),
                         ),
@@ -369,45 +374,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
+    bool showRequirements = false;
+    String passwordRequirements = '';
+    
+    // Load password requirements
+    ApiService.getPasswordRequirements().then((response) {
+      if (response['success'] == true && response['requirements'] != null) {
+        passwordRequirements = response['requirements']['description'] ?? 
+          'Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.';
+      }
+    });
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: currentPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Current Password',
-                prefixIcon: Icon(Icons.lock),
-                border: OutlineInputBorder(),
-              ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Change Password'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: currentPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Current Password',
+                    prefixIcon: Icon(Icons.lock),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: newPasswordController,
+                  obscureText: true,
+                  onTap: () {
+                    setState(() {
+                      showRequirements = true;
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'New Password',
+                    prefixIcon: Icon(Icons.lock),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                
+                // Password requirements
+                if (showRequirements && passwordRequirements.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      border: Border.all(color: Colors.blue.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, 
+                                 color: Colors.blue.shade700, size: 16),
+                            const SizedBox(width: 8),
+                            Text('Password Requirements:', 
+                                 style: TextStyle(
+                                   fontWeight: FontWeight.bold,
+                                   color: Colors.blue.shade700,
+                                   fontSize: 14,
+                                 )),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          passwordRequirements,
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm New Password',
+                    prefixIcon: Icon(Icons.lock),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: newPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'New Password',
-                prefixIcon: Icon(Icons.lock),
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: confirmPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Confirm New Password',
-                prefixIcon: Icon(Icons.lock),
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
+          ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -474,6 +537,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Change Password'),
           ),
         ],
+      ),
+        ),
       ),
     );
   }

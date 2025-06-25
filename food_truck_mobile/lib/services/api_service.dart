@@ -1077,6 +1077,40 @@ class ApiService {
     }
   }
 
+  // Get password requirements
+  static Future<Map<String, dynamic>> getPasswordRequirements() async {
+    try {
+      debugPrint('🔐 Getting password requirements');
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/password-requirements'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+
+      debugPrint('🔐 Password requirements response: ${response.statusCode}');
+      debugPrint('🔐 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to get password requirements: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error getting password requirements: $e');
+      // Return default requirements if API fails
+      return {
+        'success': true,
+        'requirements': {
+          'minLength': 8,
+          'requireUppercase': true,
+          'requireLowercase': true,
+          'requireNumbers': true,
+          'requireSpecialChars': true,
+          'description': 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (!@#\$%^&*(),.?\":{}|<>)'
+        }
+      };
+    }
+  }
+
   // Change password
   static Future<Map<String, dynamic>> changePassword(String userId, String currentPassword, String newPassword) async {
     try {

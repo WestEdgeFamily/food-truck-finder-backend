@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
 import '../customer/customer_main_screen.dart';
 import '../owner/owner_main_screen.dart';
 
@@ -22,6 +23,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _businessNameController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  String _passwordRequirements = '';
+  bool _showPasswordRequirements = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPasswordRequirements();
+  }
+
+  Future<void> _loadPasswordRequirements() async {
+    try {
+      final response = await ApiService.getPasswordRequirements();
+      if (response['success'] == true && response['requirements'] != null) {
+        setState(() {
+          _passwordRequirements = response['requirements']['description'] ?? 
+            'Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _passwordRequirements = 'Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -127,6 +152,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
+                  onTap: () {
+                    setState(() {
+                      _showPasswordRequirements = true;
+                    });
+                  },
                   decoration: InputDecoration(
                     labelText: 'Password',
                     prefixIcon: const Icon(Icons.lock),
@@ -143,12 +173,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter a password';
                     }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
+                    if (value.length < 8) {
+                      return 'Password must be at least 8 characters';
                     }
                     return null;
                   },
                 ),
+                
+                // Password requirements
+                if (_showPasswordRequirements && _passwordRequirements.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      border: Border.all(color: Colors.blue.shade200),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, 
+                                 color: Colors.blue.shade700, size: 16),
+                            const SizedBox(width: 8),
+                            Text('Password Requirements:', 
+                                 style: TextStyle(
+                                   fontWeight: FontWeight.bold,
+                                   color: Colors.blue.shade700,
+                                   fontSize: 14,
+                                 )),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _passwordRequirements,
+                          style: TextStyle(
+                            color: Colors.blue.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                
                 const SizedBox(height: 16),
 
                 // Confirm password field

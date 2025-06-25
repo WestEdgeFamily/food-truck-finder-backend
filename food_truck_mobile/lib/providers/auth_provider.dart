@@ -218,6 +218,26 @@ class AuthProvider extends ChangeNotifier {
   bool isOwner() => _user?.role == 'owner';
   bool isCustomer() => _user?.role == 'customer';
 
+  // Update user email immediately after successful email change
+  Future<void> updateUserEmail(String newEmail) async {
+    if (_user != null) {
+      _user = User(
+        id: _user!.id,
+        name: _user!.name,
+        email: newEmail, // Update the email
+        role: _user!.role,
+        businessName: _user!.businessName,
+      );
+      
+      // Update SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_email', newEmail);
+      
+      debugPrint('✅ User email updated in AuthProvider: $newEmail');
+      notifyListeners(); // This will refresh all UI components
+    }
+  }
+
   Future<void> clearUserData() async {
     _user = null;
     _token = null;
