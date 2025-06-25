@@ -1,7 +1,7 @@
 {
-  "name": "food-truck-finder-backend",
-  "version": "2.0.0",
-  "description": "Food Truck Finder API with MongoDB Atlas and persistent favorites system",
+  "name": "food-truck-backend",
+  "version": "1.0.0",
+  "description": "Food Truck Finder API Backend with MongoDB Atlas",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -13,21 +13,35 @@
     "api",
     "mongodb",
     "express",
-    "favorites",
-    "restaurant"
+    "nodejs"
   ],
-  "author": "WestEdgeFamily",
+  "author": "Food Truck App Team",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "mongoose": "^7.6.3",
-    "axios": "^1.6.0"
+    "mongoose": "^7.5.0",
+    "dotenv": "^16.3.1",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5",
+    "helmet": "^7.0.0",
+    "morgan": "^1.10.0",
+    "express-rate-limit": "^6.10.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=18.0.0"
-  }
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/food-truck-backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/food-truck-backend/issues"
+  },
+  "homepage": "https://github.com/your-username/food-truck-backend#readme"
 }
