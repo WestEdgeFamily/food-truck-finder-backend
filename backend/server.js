@@ -1237,6 +1237,10 @@ app.put('/api/users/:userId/email', async (req, res) => {
     }
     
     // Update email directly (for mobile app compatibility)
+    console.log(`🔄 Attempting to update email for user: ${user._id}`);
+    console.log(`🔄 User _id type: ${typeof user._id}`);
+    console.log(`🔄 User _id value: ${user._id}`);
+    
     const updateResult = await User.findOneAndUpdate(
       { _id: user._id },
       { email: newEmail },
@@ -1264,7 +1268,39 @@ app.put('/api/users/:userId/email', async (req, res) => {
       });
     } else {
       console.log(`❌ Email update failed for user: ${user.email}`);
-      res.status(500).json({ success: false, message: 'Failed to update email in database' });
+      console.log('🔍 Trying alternative email update method...');
+      
+      // Try alternative update method using the original search criteria
+      const alternativeQuery = user.userId ? { userId: user.userId } : { _id: user._id };
+      console.log(`🔄 Alternative query: ${JSON.stringify(alternativeQuery)}`);
+      
+      const alternativeUpdate = await User.findOneAndUpdate(
+        alternativeQuery,
+        { email: newEmail },
+        { new: true }
+      );
+      
+      if (alternativeUpdate) {
+        console.log('✅ Alternative email update method succeeded');
+        console.log(`✅ Email updated successfully in database using alternative method`);
+        
+        res.json({
+          success: true,
+          message: 'Email changed successfully',
+          user: {
+            _id: alternativeUpdate._id.toString(),
+            id: alternativeUpdate._id.toString(),
+            userId: alternativeUpdate._id.toString(),
+            name: alternativeUpdate.name,
+            email: alternativeUpdate.email,
+            role: alternativeUpdate.role,
+            businessName: alternativeUpdate.businessName
+          }
+        });
+      } else {
+        console.log('❌ Alternative email update method also failed');
+        res.status(500).json({ success: false, message: 'Failed to update email in database' });
+      }
     }
     
   } catch (error) {
@@ -1526,18 +1562,61 @@ app.put('/api/users/:userId/password', async (req, res) => {
     }
     
     // Update password directly (for mobile app compatibility)
+    console.log(`🔄 Attempting to update password for user: ${user._id}`);
+    console.log(`🔄 User _id type: ${typeof user._id}`);
+    console.log(`🔄 User _id value: ${user._id}`);
+    
     const updatedUser = await User.findOneAndUpdate(
       { _id: user._id },
       { password: newPassword },
       { new: true }
     );
     
+    console.log(`🔄 Update result: ${updatedUser ? 'SUCCESS' : 'FAILED'}`);
+    if (updatedUser) {
+      console.log(`🔄 Updated user _id: ${updatedUser._id}`);
+      console.log(`🔄 Updated user password: ${updatedUser.password ? 'SET' : 'NOT SET'}`);
+    }
+    
     if (!updatedUser) {
       console.log('❌ Failed to update password in database');
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to update password'
-      });
+      console.log('🔍 Trying alternative update method...');
+      
+      // Try alternative update method using the original search criteria
+      const alternativeQuery = user.userId ? { userId: user.userId } : { _id: user._id };
+      console.log(`🔄 Alternative query: ${JSON.stringify(alternativeQuery)}`);
+      
+      const alternativeUpdate = await User.findOneAndUpdate(
+        alternativeQuery,
+        { password: newPassword },
+        { new: true }
+      );
+      
+      if (alternativeUpdate) {
+        console.log('✅ Alternative update method succeeded');
+        console.log(`✅ Password updated successfully in database using alternative method`);
+        
+        res.json({
+          success: true,
+          message: 'Password changed successfully',
+          user: {
+            _id: alternativeUpdate._id.toString(),
+            id: alternativeUpdate._id.toString(),
+            userId: alternativeUpdate._id.toString(),
+            email: alternativeUpdate.email,
+            name: alternativeUpdate.name,
+            role: alternativeUpdate.role,
+            businessName: alternativeUpdate.businessName
+          }
+        });
+        return;
+      } else {
+        console.log('❌ Alternative update method also failed');
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to update password'
+        });
+      }
     }
     
     console.log('✅ Password updated successfully in database');
