@@ -131,4 +131,27 @@ dashboard.html
 Dockerfile
 
 # Database files
-data/ 
+data/
+
+# Development and test files
+debug-*.js
+fix-*.js
+clear-*.js
+populate-*.js
+update-*.js
+check-*.js
+reset-*.js
+social-media-tracker.js
+
+# Alternative config files
+package-updated.json
+server-mongodb.js
+github_server.js
+remote_server.js
+
+# Data files
+utah-food-trucks-*.json
+
+# Test and development utilities
+test.html
+dashboard.html 
