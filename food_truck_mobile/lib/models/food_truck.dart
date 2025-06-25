@@ -6,7 +6,6 @@ class FoodTruck {
   final String ownerId;
   final List<String> cuisineTypes;
   final String? image;
-  final String? phone;
   final String? email;
   final String? website;
   final double? latitude;
@@ -28,7 +27,6 @@ class FoodTruck {
     required this.ownerId,
     this.cuisineTypes = const [],
     this.image,
-    this.phone,
     this.email,
     this.website,
     this.latitude,
@@ -45,16 +43,17 @@ class FoodTruck {
 
   factory FoodTruck.fromJson(Map<String, dynamic> json) {
     return FoodTruck(
-      id: json['_id'] ?? json['id'] ?? '',
+      id: json['id'] ?? json['_id'] ?? '',
       name: json['name'] ?? '',
       businessName: json['businessName'] ?? json['name'] ?? '',
       description: json['description'] ?? '',
       ownerId: json['ownerId'] ?? json['owner'] ?? '',
       cuisineTypes: json['cuisineTypes'] != null
           ? List<String>.from(json['cuisineTypes'])
-          : [],
+          : json['cuisine'] != null
+              ? [json['cuisine']]
+              : [],
       image: json['image'],
-      phone: json['phone'] ?? json['phoneNumber'],
       email: json['email'],
       website: json['website'],
       latitude: json['location']?['latitude']?.toDouble() ?? 
@@ -87,7 +86,6 @@ class FoodTruck {
       'ownerId': ownerId,
       'cuisineTypes': cuisineTypes,
       'image': image,
-      'phone': phone,
       'email': email,
       'website': website,
       'location': {
@@ -113,7 +111,6 @@ class FoodTruck {
     String? ownerId,
     List<String>? cuisineTypes,
     String? image,
-    String? phone,
     String? email,
     String? website,
     double? latitude,
@@ -135,7 +132,6 @@ class FoodTruck {
       ownerId: ownerId ?? this.ownerId,
       cuisineTypes: cuisineTypes ?? this.cuisineTypes,
       image: image ?? this.image,
-      phone: phone ?? this.phone,
       email: email ?? this.email,
       website: website ?? this.website,
       latitude: latitude ?? this.latitude,

@@ -40,16 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    // TEMPORARY: Set fake user for testing favorites
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    authProvider.setFakeUserForTesting();
-
-    // Navigate directly to customer main screen
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
-    );
-
-    /* ORIGINAL CODE - COMMENTED OUT FOR TESTING
+    // Check if user is already authenticated
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     await authProvider.checkAuthStatus();
 
@@ -67,12 +58,11 @@ class _SplashScreenState extends State<SplashScreen>
         );
       }
     } else {
-      // Navigate to role selection
+      // Navigate to role selection - users must login/register
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
       );
     }
-    */
   }
 
   @override
@@ -85,19 +75,20 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.primary,
+
       body: Center(
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Food truck icon
+              // App logo
               Container(
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(60),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.2),
@@ -106,10 +97,22 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.local_shipping,
-                  size: 60,
-                  color: Color(0xFFFF6B35),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/images/app_logo.png',
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback to icon if image fails to load
+                      return const Icon(
+                        Icons.local_shipping,
+                        size: 60,
+                        color: Color(0xFFFF6B35),
+                      );
+                    },
+                  ),
                 ),
               ),
               const SizedBox(height: 32),

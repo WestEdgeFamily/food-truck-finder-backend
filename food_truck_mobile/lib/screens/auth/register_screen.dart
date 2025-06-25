@@ -19,7 +19,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _businessNameController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -30,7 +29,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _phoneController.dispose();
     _businessNameController.dispose();
     super.dispose();
   }
@@ -101,23 +99,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     }
                     if (!value.contains('@')) {
                       return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Phone field
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    prefixIcon: Icon(Icons.phone),
-                  ),
-                  validator: (value) {
-                    if (value != null && value.isNotEmpty && value.length < 10) {
-                      return 'Phone number must be at least 10 digits';
                     }
                     return null;
                   },
@@ -245,7 +226,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'email': _emailController.text.trim(),
       'password': _passwordController.text,
       'role': widget.role,
-      'phone': _phoneController.text.trim(),
       if (widget.role == 'owner') 'businessName': _businessNameController.text.trim(),
     };
 

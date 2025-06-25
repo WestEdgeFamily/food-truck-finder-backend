@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../customer/customer_main_screen.dart';
 import '../owner/owner_main_screen.dart';
 import 'register_screen.dart';
+import '../../services/api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final String role;
@@ -114,12 +115,28 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: ElevatedButton(
                         onPressed: authProvider.isLoading ? null : _login,
                         child: authProvider.isLoading
-                            ? const CircularProgressIndicator()
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
                             : const Text('Login'),
                       ),
                     );
                   },
                 ),
+                const SizedBox(height: 16),
+
+                // FIX FOR BUG #6 - Add Forgot Password link
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      _showForgotPasswordDialog();
+                    },
+                    child: const Text('Forgot Password?'),
+                  ),
+                ),
+
                 const SizedBox(height: 16),
 
                 // Register link
@@ -140,32 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
 
-                // Demo login buttons for testing
-                const SizedBox(height: 32),
-                const Divider(),
-                const SizedBox(height: 16),
-                Text(
-                  'Demo Login (for testing)',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _demoLogin('customer'),
-                        child: const Text('Demo Customer'),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _demoLogin('owner'),
-                        child: const Text('Demo Owner'),
-                      ),
-                    ),
-                  ],
-                ),
+
               ],
             ),
           ),
@@ -207,22 +199,79 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _demoLogin(String role) async {
-    // For demo purposes, create a mock login
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+  void _showForgotPasswordDialog() {
+    final emailController = TextEditingController();
     
-    // Skip actual API call for demo, create mock user data
-    if (!mounted) return;
-
-    // Navigate directly to main screen
-    if (role == 'customer') {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const CustomerMainScreen()),
-      );
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OwnerMainScreen()),
-      );
-    }
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter your email address and we\'ll send you a reset link.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (emailController.text.isNotEmpty) {
+                Navigator.of(context).pop();
+                
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Sending password reset email...'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                
+                try {
+                  // FIX FOR BUG #6 - Actually call the API
+                  await ApiService.forgotPassword(emailController.text);
+                  
+                  // Show success message
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Password reset instructions sent to ${emailController.text}'),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  // Show error message
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to send reset email: ${e.toString().replaceAll('Exception: ', '')}'),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text('Send Reset Link'),
+          ),
+        ],
+      ),
+    );
   }
 } 

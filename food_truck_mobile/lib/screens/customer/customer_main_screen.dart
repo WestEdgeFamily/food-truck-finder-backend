@@ -85,6 +85,10 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> with WidgetsBin
     final favoritesProvider = Provider.of<FavoritesProvider>(context, listen: false);
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
+    // Clear any previous data first - FIX FOR BUG #1
+    foodTruckProvider.clearAllData();
+    favoritesProvider.clearFavorites();
+    
     // Request location permission and get current location
     await locationProvider.requestLocationPermission();
     await locationProvider.getCurrentLocation();
@@ -123,6 +127,13 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> with WidgetsBin
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
+          // FIX FOR BUG #1 IMPROVEMENT - Clear search when switching away from food truck list
+          if (_currentIndex == 0 && index != 0) {
+            // User is leaving the food truck list tab, clear search
+            final foodTruckProvider = Provider.of<FoodTruckProvider>(context, listen: false);
+            foodTruckProvider.clearFilters();
+          }
+          
           setState(() {
             _currentIndex = index;
           });

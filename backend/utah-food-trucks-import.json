@@ -1,0 +1,57 @@
+[
+  {
+    "_id": {"$oid": "65a1b2c3d4e5f6789abcdef0"},
+    "name": "Mike Thompson",
+    "email": "owner@saltlakesliders.com",
+    "password": "password123",
+    "role": "owner",
+    "businessName": "Salt Lake Sliders",
+    "isActive": true,
+    "createdAt": {"$date": "2024-01-15T10:00:00.000Z"},
+    "userId": "65a1b2c3d4e5f6789abcdef0"
+  },
+  {
+    "_id": {"$oid": "65a1b2c3d4e5f6789abcdef1"},
+    "name": "Sarah Rodriguez",
+    "email": "chef@mountainpizza.com",
+    "password": "password123",
+    "role": "owner",
+    "businessName": "Mountain View Pizza Co",
+    "isActive": true,
+    "createdAt": {"$date": "2024-01-15T10:05:00.000Z"},
+    "userId": "65a1b2c3d4e5f6789abcdef1"
+  },
+  {
+    "_id": {"$oid": "65a1b2c3d4e5f6789abcdef2"},
+    "name": "Carlos Martinez",
+    "email": "owner@deserttacos.com",
+    "password": "password123",
+    "role": "owner",
+    "businessName": "Desert Bloom Tacos",
+    "isActive": true,
+    "createdAt": {"$date": "2024-01-15T10:10:00.000Z"},
+    "userId": "65a1b2c3d4e5f6789abcdef2"
+  },
+  {
+    "_id": {"$oid": "65a1b2c3d4e5f6789abcdef3"},
+    "name": "Tom Wilson",
+    "email": "chef@beehivebbq.com",
+    "password": "password123",
+    "role": "owner",
+    "businessName": "Beehive BBQ",
+    "isActive": true,
+    "createdAt": {"$date": "2024-01-15T10:15:00.000Z"},
+    "userId": "65a1b2c3d4e5f6789abcdef3"
+  },
+  {
+    "_id": {"$oid": "65a1b2c3d4e5f6789abcdef4"},
+    "name": "Emma Johnson",
+    "email": "owner@wafflecrave.com",
+    "password": "password123",
+    "role": "owner",
+    "businessName": "Waffle Cravings",
+    "isActive": true,
+    "createdAt": {"$date": "2024-01-15T10:20:00.000Z"},
+    "userId": "65a1b2c3d4e5f6789abcdef4"
+  }
+] 

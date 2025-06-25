@@ -1,0 +1,142 @@
+[
+  {
+    "_id": {"$oid": "65a1c2d3e4f5a6b7c8d9eaf0"},
+    "id": "truck_1705320000000_0",
+    "ownerId": "65a1b2c3d4e5f6789abcdef0",
+    "name": "Salt Lake Sliders",
+    "description": "Gourmet burgers and sliders made with locally sourced beef and fresh ingredients.",
+    "cuisine": "American",
+    "phone": "(801) 555-0101",
+    "email": "orders@saltlakesliders.com",
+    "location": {
+      "latitude": 40.7608,
+      "longitude": -111.8910,
+      "address": "Liberty Park, Salt Lake City, UT"
+    },
+    "menu": [
+      {"name": "Classic Beef Slider", "price": 8.99, "description": "Angus beef with lettuce, tomato, onion"},
+      {"name": "BBQ Bacon Burger", "price": 12.99, "description": "BBQ sauce, bacon, cheddar cheese"},
+      {"name": "Veggie Slider", "price": 7.99, "description": "House-made veggie patty with avocado"},
+      {"name": "Sweet Potato Fries", "price": 4.99, "description": "Crispy sweet potato fries with aioli"}
+    ],
+    "operatingHours": "Mon-Fri: 11AM-8PM, Sat-Sun: 10AM-9PM",
+    "isActive": true,
+    "imageUrl": "https://via.placeholder.com/400x300/4CAF50/FFFFFF?text=Salt%20Lake%20Sliders",
+    "rating": "4.2",
+    "totalReviews": 87,
+    "createdAt": {"$date": "2024-01-15T10:00:00.000Z"},
+    "lastUpdated": {"$date": "2024-01-15T10:00:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "65a1c2d3e4f5a6b7c8d9eaf1"},
+    "id": "truck_1705320000000_1",
+    "ownerId": "65a1b2c3d4e5f6789abcdef1",
+    "name": "Mountain View Pizza Co",
+    "description": "Wood-fired artisan pizzas with a view of the Wasatch Mountains.",
+    "cuisine": "Italian",
+    "phone": "(801) 555-0102",
+    "email": "hello@mountainpizza.com",
+    "location": {
+      "latitude": 40.7831,
+      "longitude": -111.8932,
+      "address": "University of Utah Campus, Salt Lake City, UT"
+    },
+    "menu": [
+      {"name": "Margherita Pizza", "price": 14.99, "description": "Fresh mozzarella, basil, tomato sauce"},
+      {"name": "Pepperoni Supreme", "price": 16.99, "description": "Double pepperoni, extra cheese"},
+      {"name": "Mountain Veggie", "price": 15.99, "description": "Bell peppers, mushrooms, olives, onions"},
+      {"name": "Garlic Breadsticks", "price": 6.99, "description": "Fresh baked with marinara sauce"}
+    ],
+    "operatingHours": "Tue-Sun: 12PM-9PM, Closed Mondays",
+    "isActive": true,
+    "imageUrl": "https://via.placeholder.com/400x300/FF5722/FFFFFF?text=Mountain%20View%20Pizza",
+    "rating": "4.7",
+    "totalReviews": 156,
+    "createdAt": {"$date": "2024-01-15T10:05:00.000Z"},
+    "lastUpdated": {"$date": "2024-01-15T10:05:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "65a1c2d3e4f5a6b7c8d9eaf2"},
+    "id": "truck_1705320000000_2",
+    "ownerId": "65a1b2c3d4e5f6789abcdef2",
+    "name": "Desert Bloom Tacos",
+    "description": "Authentic Mexican street tacos with house-made salsas and fresh tortillas.",
+    "cuisine": "Mexican",
+    "phone": "(801) 555-0103",
+    "email": "info@deserttacos.com",
+    "location": {
+      "latitude": 40.2338,
+      "longitude": -111.6585,
+      "address": "Provo Town Square, Provo, UT"
+    },
+    "menu": [
+      {"name": "Carne Asada Taco", "price": 3.99, "description": "Grilled steak, onions, cilantro, lime"},
+      {"name": "Al Pastor Taco", "price": 3.99, "description": "Marinated pork, pineapple, onions"},
+      {"name": "Fish Taco", "price": 4.99, "description": "Beer-battered cod, cabbage slaw, chipotle crema"},
+      {"name": "Elote Cup", "price": 5.99, "description": "Mexican street corn with cotija cheese"}
+    ],
+    "operatingHours": "Daily: 11AM-10PM",
+    "isActive": true,
+    "imageUrl": "https://via.placeholder.com/400x300/FFC107/000000?text=Desert%20Bloom%20Tacos",
+    "rating": "4.5",
+    "totalReviews": 203,
+    "createdAt": {"$date": "2024-01-15T10:10:00.000Z"},
+    "lastUpdated": {"$date": "2024-01-15T10:10:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "65a1c2d3e4f5a6b7c8d9eaf3"},
+    "id": "truck_1705320000000_3",
+    "ownerId": "65a1b2c3d4e5f6789abcdef3",
+    "name": "Beehive BBQ",
+    "description": "Slow-smoked meats and traditional BBQ sides, Utah style.",
+    "cuisine": "BBQ",
+    "phone": "(801) 555-0104",
+    "email": "orders@beehivebbq.com",
+    "location": {
+      "latitude": 40.7589,
+      "longitude": -111.8883,
+      "address": "Pioneer Park, Salt Lake City, UT"
+    },
+    "menu": [
+      {"name": "Pulled Pork Sandwich", "price": 11.99, "description": "12-hour smoked pork with coleslaw"},
+      {"name": "Brisket Platter", "price": 16.99, "description": "Sliced brisket with two sides"},
+      {"name": "BBQ Ribs (Half Rack)", "price": 18.99, "description": "Dry-rubbed ribs with house sauce"},
+      {"name": "Mac & Cheese", "price": 5.99, "description": "Creamy three-cheese blend"}
+    ],
+    "operatingHours": "Wed-Sun: 12PM-8PM, Closed Mon-Tue",
+    "isActive": true,
+    "imageUrl": "https://via.placeholder.com/400x300/8D6E63/FFFFFF?text=Beehive%20BBQ",
+    "rating": "4.8",
+    "totalReviews": 94,
+    "createdAt": {"$date": "2024-01-15T10:15:00.000Z"},
+    "lastUpdated": {"$date": "2024-01-15T10:15:00.000Z"}
+  },
+  {
+    "_id": {"$oid": "65a1c2d3e4f5a6b7c8d9eaf4"},
+    "id": "truck_1705320000000_4",
+    "ownerId": "65a1b2c3d4e5f6789abcdef4",
+    "name": "Waffle Cravings",
+    "description": "Sweet and savory gourmet waffles for breakfast, lunch, and dessert.",
+    "cuisine": "Breakfast",
+    "phone": "(801) 555-0105",
+    "email": "hello@wafflecrave.com",
+    "location": {
+      "latitude": 40.7505,
+      "longitude": -111.8638,
+      "address": "City Creek Center, Salt Lake City, UT"
+    },
+    "menu": [
+      {"name": "Classic Belgian Waffle", "price": 8.99, "description": "With butter, syrup, and powdered sugar"},
+      {"name": "Chicken & Waffle", "price": 13.99, "description": "Fried chicken breast with maple syrup"},
+      {"name": "Berry Bliss Waffle", "price": 10.99, "description": "Fresh berries and whipped cream"},
+      {"name": "Bacon Waffle Sandwich", "price": 9.99, "description": "Scrambled eggs, bacon, cheese"}
+    ],
+    "operatingHours": "Daily: 7AM-3PM",
+    "isActive": true,
+    "imageUrl": "https://via.placeholder.com/400x300/E91E63/FFFFFF?text=Waffle%20Cravings",
+    "rating": "4.3",
+    "totalReviews": 128,
+    "createdAt": {"$date": "2024-01-15T10:20:00.000Z"},
+    "lastUpdated": {"$date": "2024-01-15T10:20:00.000Z"}
+  }
+] 

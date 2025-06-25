@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/food_truck_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
+import '../../models/food_truck.dart';
 
 class LocationTrackingScreen extends StatefulWidget {
   const LocationTrackingScreen({super.key});
@@ -14,6 +19,7 @@ class LocationTrackingScreen extends StatefulWidget {
 class _LocationTrackingScreenState extends State<LocationTrackingScreen> {
   final TextEditingController _addressController = TextEditingController();
   bool _isTracking = false;
+  bool _isUpdating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -218,27 +224,75 @@ class _LocationTrackingScreenState extends State<LocationTrackingScreen> {
 
   Future<void> _updateLocation() async {
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-    final foodTruckProvider = Provider.of<FoodTruckProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     
     await locationProvider.getCurrentLocation();
     
-    if (locationProvider.currentPosition != null) {
-      // TODO: Update food truck location in database
-      // For now, just show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Location updated successfully!'),
-            backgroundColor: Colors.green,
-            action: SnackBarAction(
-              label: 'Share',
-              textColor: Colors.white,
-              onPressed: () {
-                // TODO: Share location with customers
-              },
+    if (locationProvider.currentPosition != null && authProvider.user != null) {
+      try {
+        setState(() => _isUpdating = true);
+        
+        // Find user's truck ID by business name or owner ID
+        final trucksResponse = await ApiService.getFoodTrucks();
+        FoodTruck? userTruck;
+        
+        for (var truckData in trucksResponse) {
+          if (truckData is Map<String, dynamic>) {
+            final truck = FoodTruck.fromJson(truckData);
+            if (truck.ownerId == authProvider.user!.id ||
+                (authProvider.user!.businessName != null && 
+                 truck.businessName == authProvider.user!.businessName)) {
+              userTruck = truck;
+              break;
+            }
+          }
+        }
+        
+        if (userTruck != null) {
+          // Update location via API
+          final response = await ApiService.updateTruckLocation(
+            userTruck.id,
+            locationProvider.currentPosition!.latitude,
+            locationProvider.currentPosition!.longitude,
+            _addressController.text.isNotEmpty ? _addressController.text : null,
+          );
+          
+          if (response['success'] == true) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Location updated successfully!'),
+                  backgroundColor: Colors.green,
+                  action: SnackBarAction(
+                    label: 'View',
+                    textColor: Colors.white,
+                    onPressed: () {
+                      // Could navigate to map view or truck details
+                    },
+                  ),
+                ),
+              );
+            }
+          } else {
+            throw Exception('Failed to update location');
+          }
+        } else {
+          throw Exception('Food truck not found for this account');
+        }
+      } catch (e) {
+        debugPrint('Error updating location: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error updating location: $e'),
+              backgroundColor: Colors.red,
             ),
-          ),
-        );
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isUpdating = false);
+        }
       }
     }
   }

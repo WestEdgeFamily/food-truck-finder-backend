@@ -12,17 +12,26 @@ class CustomerProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Colors.white,
-      ),
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, child) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  // Profile header with title
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      'Profile',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 // Profile header
                 Card(
                   child: Padding(
@@ -72,12 +81,18 @@ class CustomerProfileScreen extends StatelessWidget {
                   icon: Icons.favorite,
                   title: 'Favorite Food Trucks',
                       subtitle: '${favoritesProvider.favorites.length} saved trucks',
-                  onTap: () {
-                        Navigator.of(context).push(
+                  onTap: () async {
+                        // FIX FOR BUG #2 - Refresh favorites when returning
+                        final result = await Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (context) => const FavoritesScreen(),
                           ),
                         );
+                        // Trigger rebuild by calling setState or using mounted check
+                        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                        if (authProvider.user?.id != null) {
+                          favoritesProvider.loadFavorites(authProvider.user!.id);
+                        }
                       },
                     );
                   },
@@ -95,9 +110,9 @@ class CustomerProfileScreen extends StatelessWidget {
                 
                 _buildMenuCard(
                   context,
-                  icon: Icons.notifications,
-                  title: 'Notifications',
-                  subtitle: 'Manage your notifications',
+                  icon: Icons.settings,
+                  title: 'Settings',
+                  subtitle: 'Account, notifications, and privacy',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -107,19 +122,7 @@ class CustomerProfileScreen extends StatelessWidget {
                   },
                 ),
                 
-                _buildMenuCard(
-                  context,
-                  icon: Icons.settings,
-                  title: 'Settings',
-                  subtitle: 'App preferences',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
+                const SizedBox(height: 16),
                 
                 const Spacer(),
                 
@@ -137,7 +140,8 @@ class CustomerProfileScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           );
         },

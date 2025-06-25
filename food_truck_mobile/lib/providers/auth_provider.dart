@@ -24,7 +24,6 @@ class AuthProvider extends ChangeNotifier {
       final userId = prefs.getString('user_id');
       final userName = prefs.getString('user_name');
       final userEmail = prefs.getString('user_email');
-      final userPhone = prefs.getString('user_phone');
       final userBusinessName = prefs.getString('user_business_name');
 
       if (token != null && userRole != null && userId != null) {
@@ -34,7 +33,6 @@ class AuthProvider extends ChangeNotifier {
           name: userName ?? '',
           email: userEmail ?? '',
           role: userRole,
-          phone: userPhone,
           businessName: userBusinessName,
         );
       }
@@ -52,10 +50,19 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final response = await ApiService.login(email, password, role);
+      debugPrint('🔍 AuthProvider received response: $response');
+      debugPrint('🔍 Looking for success field: ${response['success']}');
+      debugPrint('🔍 Response keys: ${response.keys.toList()}');
       
       if (response['success'] == true) {
         _token = response['token'];
         _user = User.fromJson(response['user']);
+
+        debugPrint('🔥 AUTH DEBUG: Login successful');
+        debugPrint('🔥 User ID: ${_user!.id}');
+        debugPrint('🔥 User name: ${_user!.name}');
+        debugPrint('🔥 User email: ${_user!.email}');
+        debugPrint('🔥 User role: ${_user!.role}');
 
         // Save to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
@@ -64,23 +71,25 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setString('user_id', _user!.id);
         await prefs.setString('user_name', _user!.name);
         await prefs.setString('user_email', _user!.email);
-        if (_user!.phone != null) {
-          await prefs.setString('user_phone', _user!.phone!);
-        }
         if (_user!.businessName != null) {
           await prefs.setString('user_business_name', _user!.businessName!);
         }
 
+        debugPrint('🔥 AUTH DEBUG: User data saved to SharedPreferences');
+        _isLoading = false;
         notifyListeners();
         return true;
+      } else {
+        _isLoading = false;
+        notifyListeners();
+        return false;
       }
     } catch (e) {
-      debugPrint('Login error: $e');
-    } finally {
+      debugPrint('💥 Login error: $e');
       _isLoading = false;
       notifyListeners();
+      return false;
     }
-    return false;
   }
 
   Future<bool> register(Map<String, dynamic> userData) async {
@@ -89,30 +98,45 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final response = await ApiService.register(userData);
+      debugPrint('🔍 AuthProvider received registration response: $response');
+      debugPrint('🔍 Looking for success field: ${response['success']}');
+      debugPrint('🔍 Registration response keys: ${response.keys.toList()}');
       
-      if (response['success'] == true) {
+      // Check for different possible response formats
+      if (response['success'] == true || response.containsKey('token')) {
         _token = response['token'];
-        _user = User.fromJson(response['user']);
+        
+        // Handle different user data formats
+        Map<String, dynamic> userDataFromResponse;
+        if (response['user'] != null) {
+          userDataFromResponse = response['user'];
+        } else {
+          // If no 'user' field, use the response directly
+          userDataFromResponse = response;
+        }
+        debugPrint('🔍 Registration user data to parse: $userDataFromResponse');
+        
+        _user = User.fromJson(userDataFromResponse);
 
-        // Save to SharedPreferences
+        // Save to SharedPreferences - this auto-logs them in
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', _token!);
         await prefs.setString('user_role', _user!.role);
         await prefs.setString('user_id', _user!.id);
         await prefs.setString('user_name', _user!.name);
         await prefs.setString('user_email', _user!.email);
-        if (_user!.phone != null) {
-          await prefs.setString('user_phone', _user!.phone!);
-        }
         if (_user!.businessName != null) {
           await prefs.setString('user_business_name', _user!.businessName!);
         }
 
+        debugPrint('✅ Registration successful! User auto-logged in: ${_user!.name}');
         notifyListeners();
         return true;
+      } else {
+        debugPrint('❌ Registration failed - no success flag or token found');
       }
     } catch (e) {
-      debugPrint('Registration error: $e');
+      debugPrint('💥 Registration error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -121,11 +145,37 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _user = null;
+    _token = null;
+    
+    // Clear SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
+    await prefs.remove('user_role');
+    await prefs.remove('user_id');
+    await prefs.remove('user_name');
+    await prefs.remove('user_email');
+    await prefs.remove('user_business_name');
+    
+    notifyListeners();
+  }
+
+  // Force clear all authentication data - for debugging/testing
+  Future<void> forceLogout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      // Clear specific auth keys
+      await prefs.remove('auth_token');
+      await prefs.remove('user_role');
+      await prefs.remove('user_id');
+      await prefs.remove('user_name');
+      await prefs.remove('user_email');
+      await prefs.remove('user_business_name');
+      // Clear everything else too
       await prefs.clear();
+      debugPrint('🧹 All authentication data cleared');
     } catch (e) {
-      debugPrint('Logout error: $e');
+      debugPrint('Force logout error: $e');
     }
 
     _user = null;
@@ -133,18 +183,54 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Add method to check if we have stored credentials
+  Future<bool> hasStoredCredentials() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final userId = prefs.getString('user_id');
+      return token != null && userId != null;
+    } catch (e) {
+      debugPrint('Error checking stored credentials: $e');
+      return false;
+    }
+  }
+
+  // Method to verify if the stored session is still valid
+  Future<bool> validateStoredSession() async {
+    try {
+      if (!await hasStoredCredentials()) {
+        return false;
+      }
+      
+      // If we have credentials but no current user, try to restore
+      if (_user == null) {
+        await checkAuthStatus();
+      }
+      
+      return _user != null && _token != null;
+    } catch (e) {
+      debugPrint('Error validating session: $e');
+      return false;
+    }
+  }
+
   bool isOwner() => _user?.role == 'owner';
   bool isCustomer() => _user?.role == 'customer';
 
-  // TEMPORARY: Method for testing - set fake user
-  void setFakeUserForTesting() {
-    _user = User(
-      id: 'user_1749785616229', // Same user ID from the logs
-      name: 'Test User',
-      email: 'test@example.com',
-      role: 'customer',
-    );
-    _token = 'fake_token_for_testing';
+  Future<void> clearUserData() async {
+    _user = null;
+    _token = null;
+    
+    // Clear SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token');
+    await prefs.remove('user_role');
+    await prefs.remove('user_id');
+    await prefs.remove('user_name');
+    await prefs.remove('user_email');
+    await prefs.remove('user_business_name');
+    
     notifyListeners();
   }
 } 

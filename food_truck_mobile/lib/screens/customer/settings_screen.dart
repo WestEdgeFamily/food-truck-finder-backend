@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/location_monitoring_provider.dart';
 import '../../providers/favorites_provider.dart';
+import '../../services/api_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,6 +19,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _locationBasedNotifications = true;
   bool _favoritesTruckNearby = true;
   double _notificationRadius = 20.0; // miles
+  bool _testingBackend = false;
+  Map<String, dynamic>? _testResults;
 
   @override
   void initState() {
@@ -44,268 +47,433 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _testBackendConnectivity() async {
+    setState(() {
+      _testingBackend = true;
+      _testResults = null;
+    });
+
+    try {
+      final results = await ApiService.testBackendConnectivity();
+      setState(() {
+        _testResults = results;
+      });
+    } catch (e) {
+      setState(() {
+        _testResults = {
+          'error': 'Failed to run connectivity test: $e'
+        };
+      });
+    } finally {
+      setState(() {
+        _testingBackend = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Notifications Section
-          _buildSectionHeader('Notifications'),
-          _buildSwitchTile(
-            'Enable Notifications',
-            'Receive push notifications from the app',
-            Icons.notifications,
-            _notificationsEnabled,
-            (value) {
-              setState(() => _notificationsEnabled = value);
-              _saveSetting('notifications_enabled', value);
-            },
-          ),
-          _buildSwitchTile(
-            'Location-Based Notifications',
-            'Get notified when food trucks are nearby',
-            Icons.location_on,
-            _locationBasedNotifications,
-            (value) {
-              setState(() => _locationBasedNotifications = value);
-              _saveSetting('location_notifications', value);
-            },
-            enabled: _notificationsEnabled,
-          ),
-          _buildSwitchTile(
-            'Favorite Trucks Nearby',
-            'Get notified when your favorite trucks are near you',
-            Icons.favorite,
-            _favoritesTruckNearby,
-            (value) {
-              setState(() => _favoritesTruckNearby = value);
-              _saveSetting('favorites_nearby', value);
-            },
-            enabled: _notificationsEnabled && _locationBasedNotifications,
-          ),
-
-          // Notification Radius
-          if (_notificationsEnabled && _locationBasedNotifications) ...[
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+      body: Consumer<AuthProvider>(
+        builder: (context, authProvider, child) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // DEBUG SECTION - TEMPORARY
+              Card(
+                color: Colors.yellow[100],
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DEBUG INFO (Temporary)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('User ID: ${authProvider.user?.id ?? 'NULL'}'),
+                      Text('User Email: ${authProvider.user?.email ?? 'NULL'}'),
+                      Text('User Role: ${authProvider.user?.role ?? 'NULL'}'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Account Section
+              Text(
+                'Account',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Current Email Display
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.email),
+                  title: const Text('Email Address'),
+                  subtitle: Text(authProvider.user?.email ?? 'Not set'),
+                  trailing: TextButton(
+                    onPressed: () => _showChangeEmailDialog(),
+                    child: const Text('Change'),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 8),
+              
+              // Change Password
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.lock),
+                  title: const Text('Password'),
+                  subtitle: const Text('••••••••'),
+                  trailing: TextButton(
+                    onPressed: () => _showChangePasswordDialog(),
+                    child: const Text('Change'),
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Notifications Section
+              Text(
+                'Notifications',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              Card(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.radar,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Notification Radius',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
+                    SwitchListTile(
+                      title: const Text('Push Notifications'),
+                      subtitle: const Text('Receive notifications about nearby food trucks'),
+                      value: _notificationsEnabled,
+                      onChanged: (value) {
+                        setState(() {
+                          _notificationsEnabled = value;
+                        });
+                        _saveSetting('notifications_enabled', value);
+                      },
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Get notified when food trucks are within ${_notificationRadius.round()} miles',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      title: const Text('Location Updates'),
+                      subtitle: const Text('Get notified when favorite trucks move'),
+                      value: _locationBasedNotifications,
+                      onChanged: (value) {
+                        setState(() {
+                          _locationBasedNotifications = value;
+                        });
+                        _saveSetting('location_notifications', value);
+                      },
+                    ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      title: const Text('Favorite Trucks Nearby'),
+                      subtitle: const Text('Alert when favorite trucks are in your area'),
+                      value: _favoritesTruckNearby,
+                      onChanged: (value) {
+                        setState(() {
+                          _favoritesTruckNearby = value;
+                        });
+                        _saveSetting('favorites_nearby', value);
+                      },
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      title: const Text('Notification Radius'),
+                      subtitle: Text('${_notificationRadius.round()} miles'),
+                      trailing: SizedBox(
+                        width: 150,
+                        child: Slider(
+                          value: _notificationRadius,
+                          min: 1.0,
+                          max: 50.0,
+                          divisions: 49,
+                          label: '${_notificationRadius.round()} miles',
+                          onChanged: (value) {
+                            setState(() {
+                              _notificationRadius = value;
+                            });
+                            _saveSetting('notification_radius', value);
+                          },
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Slider(
-                      value: _notificationRadius,
-                      min: 1.0,
-                      max: 50.0,
-                      divisions: 49,
-                      label: '${_notificationRadius.round()} miles',
-                      onChanged: (value) {
-                        setState(() => _notificationRadius = value);
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Privacy Section
+              Text(
+                'Privacy',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.privacy_tip),
+                      title: const Text('Privacy Policy'),
+                      trailing: const Icon(Icons.arrow_forward_ios),
+                      onTap: () {
+                        // TODO: Show privacy policy
                       },
-                      onChangeEnd: (value) {
-                        _saveSetting('notification_radius', value);
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.description),
+                      title: const Text('Terms of Service'),
+                      trailing: const Icon(Icons.arrow_forward_ios),
+                      onTap: () {
+                        // TODO: Show terms of service
                       },
                     ),
                   ],
                 ),
               ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showChangeEmailDialog() {
+    final currentEmailController = TextEditingController();
+    final newEmailController = TextEditingController();
+    final passwordController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Change Email Address'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Current Email',
+                prefixIcon: Icon(Icons.email),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: newEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'New Email',
+                prefixIcon: Icon(Icons.email),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Current Password',
+                prefixIcon: Icon(Icons.lock),
+                border: OutlineInputBorder(),
+              ),
             ),
           ],
-
-          const SizedBox(height: 24),
-
-          // Location Monitoring Status
-          _buildSectionHeader('Location Monitoring'),
-          Consumer3<LocationMonitoringProvider, LocationProvider, FavoritesProvider>(
-            builder: (context, locationMonitoring, locationProvider, favoritesProvider, child) {
-              return Card(
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: Icon(
-                        locationMonitoring.isMonitoring ? Icons.location_on : Icons.location_off,
-                        color: locationMonitoring.isMonitoring 
-                            ? Colors.green 
-                            : Colors.grey,
-                      ),
-                      title: Text(
-                        locationMonitoring.isMonitoring 
-                            ? 'Location monitoring active' 
-                            : 'Location monitoring inactive',
-                      ),
-                      subtitle: locationMonitoring.getLastCheckText() != null
-                          ? Text('Last check: ${locationMonitoring.getLastCheckText()}')
-                          : const Text('No recent checks'),
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                            if (authProvider.user?.id != null) {
-                              await locationMonitoring.checkNowForNearbyTrucks(
-                                locationProvider: locationProvider,
-                                favoritesProvider: favoritesProvider,
-                                userId: authProvider.user!.id,
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Checked for nearby favorite trucks'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Check Now'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (newEmailController.text.isNotEmpty && 
+                  passwordController.text.isNotEmpty) {
+                Navigator.of(context).pop();
+                
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Processing email change request...'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                
+                try {
+                  // FIX FOR BUG #7 - Actually call the API
+                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                  if (authProvider.user != null) {
+                    await ApiService.changeEmail(
+                      authProvider.user!.id,
+                      newEmailController.text,
+                      passwordController.text,
+                    );
+                    
+                    // Show success message
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Email change request sent to ${newEmailController.text}'),
+                          backgroundColor: Colors.green,
+                          duration: const Duration(seconds: 4),
                         ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // Show error message
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to change email: ${e.toString().replaceAll('Exception: ', '')}'),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 4),
                       ),
-                    ),
-                  ],
-                ),
-              );
+                    );
+                  }
+                }
+              }
             },
-          ),
-
-          const SizedBox(height: 24),
-
-          // About Section
-          _buildSectionHeader('About'),
-          _buildInfoTile(
-            'App Version',
-            '1.4.0 (Build 4)',
-            Icons.info,
-          ),
-
-          const SizedBox(height: 24),
-
-          // User ID Section
-          _buildSectionHeader('Debug Info'),
-          Consumer<AuthProvider>(
-            builder: (context, authProvider, child) {
-              final userId = authProvider.user?.id ?? 'Not logged in';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(
-                    Icons.perm_identity,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  title: const Text('User ID'),
-                  subtitle: Text(
-                    userId,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-              );
-            },
+            child: const Text('Change Email'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.bold,
+  void _showChangePasswordDialog() {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Change Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Current Password',
+                prefixIcon: Icon(Icons.lock),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: newPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'New Password',
+                prefixIcon: Icon(Icons.lock),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: confirmPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Confirm New Password',
+                prefixIcon: Icon(Icons.lock),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile(
-    String title,
-    String subtitle,
-    IconData icon,
-    bool value,
-    ValueChanged<bool> onChanged, {
-    bool enabled = true,
-  }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: SwitchListTile(
-        title: Text(
-          title,
-          style: TextStyle(
-            color: enabled ? null : Colors.grey,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
           ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            color: enabled ? Colors.grey[600] : Colors.grey[400],
+          ElevatedButton(
+            onPressed: () async {
+              if (newPasswordController.text.isNotEmpty && 
+                  newPasswordController.text == confirmPasswordController.text &&
+                  currentPasswordController.text.isNotEmpty) {
+                Navigator.of(context).pop();
+                
+                // Show loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Changing password...'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+                
+                try {
+                  // FIX FOR PASSWORD PERSISTENCE ISSUE - Actually call the API
+                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                  if (authProvider.user != null) {
+                    await ApiService.changePassword(
+                      authProvider.user!.id,
+                      currentPasswordController.text,
+                      newPasswordController.text,
+                    );
+                    
+                    // Show success message
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Password changed successfully'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  // Show error message
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to change password: ${e.toString().replaceAll('Exception: ', '')}'),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Passwords do not match or fields are empty'),
+                    backgroundColor: Colors.red,
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              }
+            },
+            child: const Text('Change Password'),
           ),
-        ),
-        secondary: Icon(
-          icon,
-          color: enabled ? Theme.of(context).colorScheme.primary : Colors.grey,
-        ),
-        value: enabled ? value : false,
-        onChanged: enabled ? onChanged : null,
-      ),
-    );
-  }
-
-  Widget _buildInfoTile(
-    String title,
-    String value,
-    IconData icon,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        title: Text(title),
-        trailing: Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Colors.grey[600],
-          ),
-        ),
+        ],
       ),
     );
   }

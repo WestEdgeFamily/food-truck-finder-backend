@@ -77,9 +77,10 @@ class NotificationService {
 
     // TODO: Temporarily disabled actual notifications due to build issues
     // Will be re-enabled in next update
-    final distanceText = distance < 1000 
-        ? '${distance.round()}m away' 
-        : '${(distance / 1000).toStringAsFixed(1)}km away';
+    final distanceInMiles = distance * 0.000621371;
+    final distanceText = distanceInMiles < 0.1
+        ? '${(distance * 3.28084).round()}ft away'
+        : '${distanceInMiles.toStringAsFixed(1)}mi away';
 
     debugPrint('🚚 NOTIFICATION: ${truck.name} is nearby! ($distanceText)');
     

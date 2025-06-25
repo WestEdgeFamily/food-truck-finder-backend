@@ -83,11 +83,15 @@ class LocationProvider extends ChangeNotifier {
   }
 
   String formatDistance(double distanceInMeters) {
-    if (distanceInMeters < 1000) {
-      return '${distanceInMeters.round()}m';
+    // Convert meters to miles (1 meter = 0.000621371 miles)
+    final distanceInMiles = distanceInMeters * 0.000621371;
+    
+    if (distanceInMiles < 0.1) {
+      // Show in feet for very short distances (1 mile = 5280 feet)
+      final distanceInFeet = distanceInMeters * 3.28084;
+      return '${distanceInFeet.round()}ft';
     } else {
-      final distanceInKm = distanceInMeters / 1000;
-      return '${distanceInKm.toStringAsFixed(1)}km';
+      return '${distanceInMiles.toStringAsFixed(1)}mi';
     }
   }
 

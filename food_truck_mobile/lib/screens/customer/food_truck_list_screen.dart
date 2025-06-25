@@ -17,8 +17,24 @@ class _FoodTruckListScreenState extends State<FoodTruckListScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // Set up callback to clear search text when filters are cleared programmatically
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final foodTruckProvider = Provider.of<FoodTruckProvider>(context, listen: false);
+      foodTruckProvider.setOnFiltersClearedCallback(() {
+        if (mounted) {
+          _searchController.clear();
+        }
+      });
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
+    // FIX FOR BUG #1 IMPROVEMENT - Clear search when leaving this screen
+    Provider.of<FoodTruckProvider>(context, listen: false).clearFilters();
     super.dispose();
   }
 
@@ -29,6 +45,7 @@ class _FoodTruckListScreenState extends State<FoodTruckListScreen> {
         title: const Text('Food Trucks'),
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -43,8 +60,10 @@ class _FoodTruckListScreenState extends State<FoodTruckListScreen> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
+              style: const TextStyle(color: Colors.black), // Fix text color
               decoration: InputDecoration(
                 hintText: 'Search food trucks...',
+                hintStyle: TextStyle(color: Colors.grey[600]), // Fix hint color
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(

@@ -48,6 +48,44 @@ function isCurrentlyOpen(schedule) {
   return currentTime >= todaySchedule.open && currentTime <= todaySchedule.close;
 }
 
+// Password validation helper function
+function validatePassword(password) {
+  const requirements = {
+    minLength: 8,
+    hasUppercase: /[A-Z]/.test(password),
+    hasLowercase: /[a-z]/.test(password),
+    hasNumbers: /\d/.test(password),
+    hasSpecialChars: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+  };
+  
+  const isValid = password && 
+                  password.length >= requirements.minLength &&
+                  requirements.hasUppercase &&
+                  requirements.hasLowercase &&
+                  requirements.hasNumbers &&
+                  requirements.hasSpecialChars;
+  
+  return {
+    isValid,
+    requirements: {
+      ...requirements,
+      length: password ? password.length : 0
+    }
+  };
+}
+
+// Get password requirements (for frontend display)
+function getPasswordRequirements() {
+  return {
+    minLength: 8,
+    requireUppercase: true,
+    requireLowercase: true,
+    requireNumbers: true,
+    requireSpecialChars: true,
+    description: "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character (!@#$%^&*(),.?\":{}|<>)"
+  };
+}
+
 // Initialize database with default data if empty
 async function initializeDefaultData() {
   try {
@@ -395,6 +433,14 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Password Requirements Route
+app.get('/api/auth/password-requirements', (req, res) => {
+  res.json({
+    success: true,
+    requirements: getPasswordRequirements()
+  });
+});
+
 // Auth Routes (REMOVED PHONE NUMBER REQUIREMENTS)
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -447,6 +493,24 @@ app.post('/api/auth/register', async (req, res) => {
     const { name, email, password, role, businessName } = req.body;
     
     console.log(`📝 Registration attempt: ${email} as ${role}`);
+    
+    // Validate password requirements
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      console.log(`❌ Registration failed: Password does not meet requirements`);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Password does not meet requirements',
+        passwordRequirements: getPasswordRequirements(),
+        currentPassword: {
+          length: passwordValidation.requirements.length,
+          hasUppercase: passwordValidation.requirements.hasUppercase,
+          hasLowercase: passwordValidation.requirements.hasLowercase,
+          hasNumbers: passwordValidation.requirements.hasNumbers,
+          hasSpecialChars: passwordValidation.requirements.hasSpecialChars
+        }
+      });
+    }
     
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -1123,6 +1187,93 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // Email Change Routes - ENHANCED with flexible user lookup
+
+// Mobile app compatible route: PUT /api/users/:userId/email
+app.put('/api/users/:userId/email', async (req, res) => {
+  console.log('\n📧 Mobile email change request received');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('User ID from params:', req.params.userId);
+  
+  try {
+    const { userId } = req.params;
+    const { newEmail, password } = req.body;
+    
+    if (!userId || !newEmail || !password) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: userId, newEmail, password'
+      });
+    }
+    
+    // Use flexible user finder
+    const user = await findUserFlexibly(userId);
+    if (!user) {
+      console.log(`❌ User not found for identifier: ${userId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
+    
+    // Verify password
+    if (user.password !== password) {
+      console.log('❌ Password is incorrect');
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+    
+    console.log('✅ Password verified');
+    
+    // Check if new email is already in use
+    const existingUser = await User.findOne({ email: newEmail });
+    if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+      console.log(`❌ Email change failed: Email ${newEmail} already in use`);
+      return res.status(400).json({ success: false, message: 'Email already in use' });
+    }
+    
+    // Update email directly (for mobile app compatibility)
+    const updateResult = await User.findOneAndUpdate(
+      { _id: user._id },
+      { email: newEmail },
+      { new: true }
+    );
+    
+    console.log(`📧 Update result: ${updateResult ? 'SUCCESS' : 'FAILED'}`);
+    console.log(`📧 New email in database: ${updateResult ? updateResult.email : 'N/A'}`);
+    
+    if (updateResult) {
+      console.log(`✅ Email change successful: ${user.email} -> ${newEmail}`);
+      
+      res.json({
+        success: true,
+        message: 'Email changed successfully',
+        user: {
+          _id: updateResult._id.toString(),
+          id: updateResult._id.toString(),
+          userId: updateResult._id.toString(),
+          name: updateResult.name,
+          email: updateResult.email,
+          role: updateResult.role,
+          businessName: updateResult.businessName
+        }
+      });
+    } else {
+      console.log(`❌ Email update failed for user: ${user.email}`);
+      res.status(500).json({ success: false, message: 'Failed to update email in database' });
+    }
+    
+  } catch (error) {
+    console.error('❌ Change email error:', error);
+    res.status(500).json({ success: false, message: 'Server error during email change request' });
+  }
+});
+
+// Legacy route for web portal compatibility
 app.post('/api/users/change-email', async (req, res) => {
   console.log('\n📧 Email change request received');
   console.log('Request body:', JSON.stringify(req.body, null, 2));
@@ -1314,7 +1465,108 @@ async function findUserFlexibly(identifier) {
   return null;
 }
 
-// Change Password endpoint - ENHANCED with flexible user lookup
+// Mobile app compatible password change route: PUT /api/users/:userId/password
+app.put('/api/users/:userId/password', async (req, res) => {
+  console.log('\n🔐 Mobile password change request received');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  console.log('User ID from params:', req.params.userId);
+  
+  try {
+    const { userId } = req.params;
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!userId || !currentPassword || !newPassword) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: userId (in URL), currentPassword, newPassword'
+      });
+    }
+    
+    // Use flexible user finder
+    const user = await findUserFlexibly(userId);
+    
+    if (!user) {
+      console.log(`❌ User not found for identifier: ${userId}`);
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+    
+    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
+    
+    // Verify current password
+    if (user.password !== currentPassword) {
+      console.log('❌ Current password is incorrect');
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+    
+    console.log('✅ Current password verified');
+    
+    // Validate new password requirements
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      console.log(`❌ Password change failed: New password does not meet requirements`);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'New password does not meet requirements',
+        passwordRequirements: getPasswordRequirements(),
+        currentPassword: {
+          length: passwordValidation.requirements.length,
+          hasUppercase: passwordValidation.requirements.hasUppercase,
+          hasLowercase: passwordValidation.requirements.hasLowercase,
+          hasNumbers: passwordValidation.requirements.hasNumbers,
+          hasSpecialChars: passwordValidation.requirements.hasSpecialChars
+        }
+      });
+    }
+    
+    // Update password directly (for mobile app compatibility)
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: user._id },
+      { password: newPassword },
+      { new: true }
+    );
+    
+    if (!updatedUser) {
+      console.log('❌ Failed to update password in database');
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update password'
+      });
+    }
+    
+    console.log('✅ Password updated successfully in database');
+    
+    res.json({
+      success: true,
+      message: 'Password changed successfully',
+      user: {
+        _id: updatedUser._id.toString(),
+        id: updatedUser._id.toString(),
+        userId: updatedUser._id.toString(),
+        email: updatedUser.email,
+        name: updatedUser.name,
+        role: updatedUser.role,
+        businessName: updatedUser.businessName
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Password change error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
+// Legacy password change endpoint - ENHANCED with flexible user lookup
 app.post('/api/users/change-password', async (req, res) => {
   console.log('\n🔐 Password change request received');
   console.log('Request body:', JSON.stringify(req.body, null, 2));
@@ -1369,6 +1621,24 @@ app.post('/api/users/change-password', async (req, res) => {
     }
     
     console.log('✅ Current password verified');
+    
+    // Validate new password requirements
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.isValid) {
+      console.log(`❌ Password change failed: New password does not meet requirements`);
+      return res.status(400).json({ 
+        success: false, 
+        message: 'New password does not meet requirements',
+        passwordRequirements: getPasswordRequirements(),
+        currentPassword: {
+          length: passwordValidation.requirements.length,
+          hasUppercase: passwordValidation.requirements.hasUppercase,
+          hasLowercase: passwordValidation.requirements.hasLowercase,
+          hasNumbers: passwordValidation.requirements.hasNumbers,
+          hasSpecialChars: passwordValidation.requirements.hasSpecialChars
+        }
+      });
+    }
     
     // Update password using both userId and _id for maximum compatibility
     const updateQuery = user.userId ? { userId: user.userId } : { _id: user._id };

@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const FoodTruck = require('../models/FoodTruck');
+const Favorite = require('../models/Favorite');
 
 // Check if favorites feature is available
 router.get('/check', async (req, res) => {
@@ -28,33 +30,18 @@ router.get('/:userId', async (req, res) => {
   console.log(`[FAVORITES] Getting favorites for user: ${userId}`);
   
   try {
-    // Try to find user by customUserId first
-    let user = await User.findOne({ customUserId: userId });
+    // Find all favorites for this user
+    const favorites = await Favorite.find({ userId });
+    const favoriteIds = favorites.map(fav => fav.truckId);
     
-    if (!user) {
-      console.log(`[FAVORITES] No user found with customUserId: ${userId}, creating new user`);
-      // Create new user if not found
-      user = new User({
-        customUserId: userId,
-        favorites: [],
-        email: `${userId}@placeholder.com`,
-        name: `User ${userId}`,
-        createdAt: new Date()
-      });
-      await user.save();
-      console.log(`[FAVORITES] Created new user: ${user._id}`);
-    }
+    // Get the actual food truck data
+    const favoriteTrucks = await FoodTruck.find({ id: { $in: favoriteIds } });
     
-    // Populate the favorites with actual food truck data
-    const populatedUser = await User.findOne({ customUserId: userId })
-      .populate('favorites', 'name description cuisine location rating imageUrl');
-    
-    const favorites = populatedUser.favorites || [];
-    console.log(`[FAVORITES] Found ${favorites.length} favorites for user ${userId}`);
+    console.log(`[FAVORITES] Found ${favoriteTrucks.length} favorites for user ${userId}`);
     
     res.json({
-      favorites: favorites,
-      count: favorites.length,
+      favorites: favoriteTrucks,
+      count: favoriteTrucks.length,
       userId: userId,
       timestamp: new Date().toISOString()
     });
@@ -75,28 +62,16 @@ router.post('/:userId/:truckId', async (req, res) => {
   console.log(`[FAVORITES] Adding truck ${truckId} to favorites for user ${userId}`);
   
   try {
-    // Check if food truck exists
-    const foodTruck = await FoodTruck.findById(truckId);
+    // Check if food truck exists (using custom id field, not _id)
+    const foodTruck = await FoodTruck.findOne({ id: truckId });
     if (!foodTruck) {
       console.log(`[FAVORITES] Food truck not found: ${truckId}`);
       return res.status(404).json({ error: 'Food truck not found' });
     }
     
-    // Find or create user
-    let user = await User.findOne({ customUserId: userId });
-    if (!user) {
-      user = new User({
-        customUserId: userId,
-        favorites: [],
-        email: `${userId}@placeholder.com`,
-        name: `User ${userId}`,
-        createdAt: new Date()
-      });
-      await user.save();
-    }
-    
     // Check if already in favorites
-    if (user.favorites.includes(truckId)) {
+    const existingFavorite = await Favorite.findOne({ userId, truckId });
+    if (existingFavorite) {
       console.log(`[FAVORITES] Truck ${truckId} already in favorites for user ${userId}`);
       return res.json({ 
         message: 'Food truck already in favorites',
@@ -107,15 +82,18 @@ router.post('/:userId/:truckId', async (req, res) => {
     }
     
     // Add to favorites
-    user.favorites.push(truckId);
-    await user.save();
+    const favorite = new Favorite({ userId, truckId });
+    await favorite.save();
+    
+    // Get updated count
+    const totalFavorites = await Favorite.countDocuments({ userId });
     
     console.log(`[FAVORITES] Successfully added truck ${truckId} to favorites for user ${userId}`);
     res.json({ 
       message: 'Food truck added to favorites',
       truckId: truckId,
       userId: userId,
-      favoritesCount: user.favorites.length,
+      favoritesCount: totalFavorites,
       timestamp: new Date().toISOString()
     });
     
@@ -136,15 +114,10 @@ router.delete('/:userId/:truckId', async (req, res) => {
   console.log(`[FAVORITES] Removing truck ${truckId} from favorites for user ${userId}`);
   
   try {
-    // Find user
-    const user = await User.findOne({ customUserId: userId });
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    // Remove from favorites
+    const result = await Favorite.deleteOne({ userId, truckId });
     
-    // Check if in favorites
-    const truckIndex = user.favorites.indexOf(truckId);
-    if (truckIndex === -1) {
+    if (result.deletedCount === 0) {
       console.log(`[FAVORITES] Truck ${truckId} not in favorites for user ${userId}`);
       return res.json({ 
         message: 'Food truck not in favorites',
@@ -154,16 +127,15 @@ router.delete('/:userId/:truckId', async (req, res) => {
       });
     }
     
-    // Remove from favorites
-    user.favorites.splice(truckIndex, 1);
-    await user.save();
+    // Get updated count
+    const totalFavorites = await Favorite.countDocuments({ userId });
     
     console.log(`[FAVORITES] Successfully removed truck ${truckId} from favorites for user ${userId}`);
     res.json({ 
       message: 'Food truck removed from favorites',
       truckId: truckId,
       userId: userId,
-      favoritesCount: user.favorites.length,
+      favoritesCount: totalFavorites,
       timestamp: new Date().toISOString()
     });
     
@@ -184,18 +156,10 @@ router.get('/:userId/check/:truckId', async (req, res) => {
   console.log(`[FAVORITES] Checking if truck ${truckId} is favorited by user ${userId}`);
   
   try {
-    // Find user
-    const user = await User.findOne({ customUserId: userId });
-    if (!user) {
-      return res.json({ 
-        isFavorited: false,
-        truckId: truckId,
-        userId: userId,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // Check if favorite exists
+    const favorite = await Favorite.findOne({ userId, truckId });
+    const isFavorited = !!favorite;
     
-    const isFavorited = user.favorites.includes(truckId);
     console.log(`[FAVORITES] Truck ${truckId} is ${isFavorited ? 'favorited' : 'not favorited'} by user ${userId}`);
     
     res.json({ 

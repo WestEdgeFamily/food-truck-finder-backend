@@ -9,6 +9,9 @@ class FoodTruckProvider extends ChangeNotifier {
   String? _error;
   String _searchQuery = '';
   List<String> _selectedCuisines = [];
+  
+  // Callback for when filters are cleared - so UI can update
+  VoidCallback? _onFiltersCleared;
 
   List<FoodTruck> get foodTrucks => _filteredTrucks;
   List<FoodTruck> get allFoodTrucks => _foodTrucks;
@@ -16,6 +19,10 @@ class FoodTruckProvider extends ChangeNotifier {
   String? get error => _error;
   String get searchQuery => _searchQuery;
   List<String> get selectedCuisines => _selectedCuisines;
+
+  void setOnFiltersClearedCallback(VoidCallback? callback) {
+    _onFiltersCleared = callback;
+  }
 
   Future<void> loadFoodTrucks() async {
     _isLoading = true;
@@ -93,10 +100,22 @@ class FoodTruckProvider extends ChangeNotifier {
     _selectedCuisines = [];
     _applyFilters();
     notifyListeners();
+    _onFiltersCleared?.call();
   }
 
   void clearError() {
     _error = null;
+    notifyListeners();
+  }
+
+  // Clear all data when user logs out - FIX FOR BUG #1
+  void clearAllData() {
+    _foodTrucks = [];
+    _filteredTrucks = [];
+    _searchQuery = '';
+    _selectedCuisines = [];
+    _error = null;
+    _isLoading = false;
     notifyListeners();
   }
 
