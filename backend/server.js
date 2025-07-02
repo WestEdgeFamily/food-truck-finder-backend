@@ -19,7 +19,7 @@ app.use(cors({
 app.use(express.json());
 
 // MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://codycook:sLYlcz4fvFDVGKxk@cluster0.bpjvh.mongodb.net/foodtruckapp?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://testuser:Test123456@food-truck-finder-clust.nwvuj4n.mongodb.net/foodtruckapp?retryWrites=true&w=majority';
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
@@ -98,17 +98,19 @@ async function initializeDefaultData() {
       const defaultUsers = [
         {
           _id: 'user1',
+          userId: 'user1',
           name: 'John Customer',
           email: 'john@customer.com',
-          password: 'password123',
+          password: 'TestPass123!',
           role: 'customer',
           createdAt: new Date()
         },
         {
           _id: 'owner1',
+          userId: 'owner1',
           name: 'Mike Rodriguez',
           email: 'mike@tacos.com',
-          password: 'password123',
+          password: 'TestPass123!',
           role: 'owner',
           businessName: 'Mike\'s Tacos',
           createdAt: new Date()
@@ -144,13 +146,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '11:00', close: '21:00', isOpen: true },
-            tuesday: { open: '11:00', close: '21:00', isOpen: true },
-            wednesday: { open: '11:00', close: '21:00', isOpen: true },
-            thursday: { open: '11:00', close: '21:00', isOpen: true },
-            friday: { open: '11:00', close: '21:00', isOpen: true },
-            saturday: { open: '11:00', close: '21:00', isOpen: true },
-            sunday: { open: '12:00', close: '20:00', isOpen: true }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         },
         {
@@ -175,13 +177,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '11:00', close: '22:00', isOpen: true },
-            tuesday: { open: '11:00', close: '22:00', isOpen: true },
-            wednesday: { open: '11:00', close: '22:00', isOpen: true },
-            thursday: { open: '11:00', close: '22:00', isOpen: true },
-            friday: { open: '11:00', close: '23:00', isOpen: true },
-            saturday: { open: '11:00', close: '23:00', isOpen: true },
-            sunday: { open: '12:00', close: '22:00', isOpen: false }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         },
         {
@@ -206,13 +208,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '11:00', close: '21:00', isOpen: true },
-            tuesday: { open: '11:00', close: '21:00', isOpen: true },
-            wednesday: { open: '11:00', close: '21:00', isOpen: true },
-            thursday: { open: '11:00', close: '21:00', isOpen: true },
-            friday: { open: '11:00', close: '22:00', isOpen: true },
-            saturday: { open: '11:00', close: '22:00', isOpen: true },
-            sunday: { open: '10:00', close: '21:00', isOpen: true }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         },
         {
@@ -237,13 +239,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '10:00', close: '22:00', isOpen: true },
-            tuesday: { open: '10:00', close: '22:00', isOpen: true },
-            wednesday: { open: '10:00', close: '22:00', isOpen: true },
-            thursday: { open: '10:00', close: '22:00', isOpen: true },
-            friday: { open: '10:00', close: '22:00', isOpen: true },
-            saturday: { open: '10:00', close: '22:00', isOpen: true },
-            sunday: { open: '11:00', close: '21:00', isOpen: true }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         },
         {
@@ -268,13 +270,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '12:00', close: '20:00', isOpen: true },
-            tuesday: { open: '12:00', close: '20:00', isOpen: true },
-            wednesday: { open: '12:00', close: '20:00', isOpen: true },
-            thursday: { open: '12:00', close: '20:00', isOpen: true },
-            friday: { open: '12:00', close: '20:00', isOpen: true },
-            saturday: { open: '10:00', close: '20:00', isOpen: true },
-            sunday: { open: '10:00', close: '20:00', isOpen: true }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         },
         {
@@ -299,13 +301,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '06:00', close: '15:00', isOpen: true },
-            tuesday: { open: '06:00', close: '15:00', isOpen: true },
-            wednesday: { open: '06:00', close: '15:00', isOpen: true },
-            thursday: { open: '06:00', close: '15:00', isOpen: true },
-            friday: { open: '06:00', close: '15:00', isOpen: true },
-            saturday: { open: '07:00', close: '14:00', isOpen: true },
-            sunday: { open: '07:00', close: '14:00', isOpen: true }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         },
         {
@@ -330,13 +332,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '11:00', close: '20:00', isOpen: false },
-            tuesday: { open: '11:00', close: '20:00', isOpen: true },
-            wednesday: { open: '11:00', close: '20:00', isOpen: true },
-            thursday: { open: '11:00', close: '20:00', isOpen: true },
-            friday: { open: '11:00', close: '20:00', isOpen: true },
-            saturday: { open: '11:00', close: '20:00', isOpen: true },
-            sunday: { open: '12:00', close: '18:00', isOpen: true }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         },
         {
@@ -361,13 +363,13 @@ async function initializeDefaultData() {
           ],
           ownerId: 'owner1',
           schedule: {
-            monday: { open: '11:00', close: '21:00', isOpen: false },
-            tuesday: { open: '11:00', close: '21:00', isOpen: false },
-            wednesday: { open: '11:00', close: '21:00', isOpen: true },
-            thursday: { open: '11:00', close: '21:00', isOpen: true },
-            friday: { open: '11:00', close: '21:00', isOpen: true },
-            saturday: { open: '11:00', close: '21:00', isOpen: true },
-            sunday: { open: '11:00', close: '21:00', isOpen: true }
+            monday: { open: '00:00', close: '23:59', isOpen: true },
+            tuesday: { open: '00:00', close: '23:59', isOpen: true },
+            wednesday: { open: '00:00', close: '23:59', isOpen: true },
+            thursday: { open: '00:00', close: '23:59', isOpen: true },
+            friday: { open: '00:00', close: '23:59', isOpen: true },
+            saturday: { open: '00:00', close: '23:59', isOpen: true },
+            sunday: { open: '00:00', close: '23:59', isOpen: true }
           }
         }
       ];
@@ -404,6 +406,8 @@ app.get('/', (req, res) => {
     }
   });
 });
+
+
 
 // Health check
 app.get('/api/health', async (req, res) => {
@@ -519,9 +523,13 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
     
-    // Create new user - LET MONGODB GENERATE THE _id, then use it consistently
+    // Generate a unique user ID
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Create new user with explicit _id (required by User model)
     const newUser = new User({
-      // DON'T set _id manually, let MongoDB generate it
+      _id: userId,
+      userId: userId,
       name,
       email,
       password,
@@ -530,12 +538,8 @@ app.post('/api/auth/register', async (req, res) => {
       createdAt: new Date()
     });
     
-    // Save user first to get the MongoDB-generated _id
+    // Save user
     const savedUser = await newUser.save();
-    
-    // NOW set userId to match _id for consistency
-    savedUser.userId = savedUser._id.toString();
-    await savedUser.save();
     
     console.log(`✅ User created successfully: ${email}`);
     console.log(`🆔 User ID: ${savedUser._id}`);
@@ -568,13 +572,13 @@ app.post('/api/auth/register', async (req, res) => {
         lastUpdated: new Date(),
         reviewCount: 0,
         schedule: {
-          monday: { open: '09:00', close: '17:00', isOpen: true },
-          tuesday: { open: '09:00', close: '17:00', isOpen: true },
-          wednesday: { open: '09:00', close: '17:00', isOpen: true },
-          thursday: { open: '09:00', close: '17:00', isOpen: true },
-          friday: { open: '09:00', close: '17:00', isOpen: true },
-          saturday: { open: '10:00', close: '16:00', isOpen: true },
-          sunday: { open: '10:00', close: '16:00', isOpen: false }
+          monday: { open: '00:00', close: '23:59', isOpen: true },
+          tuesday: { open: '00:00', close: '23:59', isOpen: true },
+          wednesday: { open: '00:00', close: '23:59', isOpen: true },
+          thursday: { open: '00:00', close: '23:59', isOpen: true },
+          friday: { open: '00:00', close: '23:59', isOpen: true },
+          saturday: { open: '00:00', close: '23:59', isOpen: true },
+          sunday: { open: '00:00', close: '23:59', isOpen: true }
         },
         // POS Integration fields
         posSettings: {
@@ -614,6 +618,15 @@ app.post('/api/auth/register', async (req, res) => {
     console.error('❌ Registration error:', error);
     res.status(500).json({ success: false, message: 'Server error during registration' });
   }
+});
+
+// Get password requirements endpoint
+app.get('/api/auth/password-requirements', (req, res) => {
+  console.log('🔐 Password requirements requested');
+  res.json({
+    success: true,
+    requirements: getPasswordRequirements()
+  });
 });
 
 // Food Truck Routes with dynamic open/closed status
@@ -795,13 +808,13 @@ app.get('/api/trucks/:id/schedule', async (req, res) => {
       res.json({ 
         success: true, 
         schedule: truck.schedule || {
-          monday: { open: '09:00', close: '17:00', isOpen: true },
-          tuesday: { open: '09:00', close: '17:00', isOpen: true },
-          wednesday: { open: '09:00', close: '17:00', isOpen: true },
-          thursday: { open: '09:00', close: '17:00', isOpen: true },
-          friday: { open: '09:00', close: '17:00', isOpen: true },
-          saturday: { open: '10:00', close: '16:00', isOpen: true },
-          sunday: { open: '10:00', close: '16:00', isOpen: false }
+          monday: { open: '00:00', close: '23:59', isOpen: true },
+          tuesday: { open: '00:00', close: '23:59', isOpen: true },
+          wednesday: { open: '00:00', close: '23:59', isOpen: true },
+          thursday: { open: '00:00', close: '23:59', isOpen: true },
+          friday: { open: '00:00', close: '23:59', isOpen: true },
+          saturday: { open: '00:00', close: '23:59', isOpen: true },
+          sunday: { open: '00:00', close: '23:59', isOpen: true }
         }
       });
     } else {
@@ -1776,6 +1789,164 @@ app.get('/api/trucks/search', async (req, res) => {
   }
 });
 
+// Enhanced filtering endpoint for mobile app
+app.get('/api/trucks/filter', async (req, res) => {
+  try {
+    const {
+      search,
+      cuisine,
+      cuisines, // Support multiple cuisines (comma-separated)
+      openOnly,
+      minRating,
+      lat,
+      lng,
+      maxDistance, // in kilometers
+      sortBy, // distance, rating, name, reviewCount
+      limit = 50
+    } = req.query;
+
+    let query = { isActive: true };
+    let sort = {};
+
+    // Text search
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { cuisine: searchRegex },
+        { businessName: searchRegex }
+      ];
+    }
+
+    // Cuisine filtering (single or multiple)
+    if (cuisine || cuisines) {
+      const cuisineList = cuisines ? cuisines.split(',').map(c => c.trim()) : [cuisine];
+      if (cuisineList.length === 1) {
+        query.cuisine = new RegExp(cuisineList[0], 'i');
+      } else {
+        query.cuisine = { $in: cuisineList.map(c => new RegExp(c, 'i')) };
+      }
+    }
+
+    // Open now filtering
+    if (openOnly === 'true') {
+      query.isOpen = true;
+    }
+
+    // Rating filtering
+    if (minRating) {
+      query.rating = { $gte: parseFloat(minRating) };
+    }
+
+    // Distance filtering (basic implementation)
+    let trucks = await FoodTruck.find(query);
+
+    // Update open/closed status based on current time and schedule
+    trucks = trucks.map(truck => ({
+      ...truck.toObject(),
+      isOpen: isCurrentlyOpen(truck.schedule)
+    }));
+
+    // Apply distance filtering if coordinates provided
+    if (lat && lng && maxDistance) {
+      const userLat = parseFloat(lat);
+      const userLng = parseFloat(lng);
+      const maxDistanceKm = parseFloat(maxDistance);
+
+      trucks = trucks.filter(truck => {
+        if (!truck.location?.latitude || !truck.location?.longitude) {
+          return false; // Exclude trucks without location
+        }
+
+        // Calculate distance using Haversine formula
+        const truckLat = truck.location.latitude;
+        const truckLng = truck.location.longitude;
+        
+        const R = 6371; // Earth's radius in km
+        const dLat = (truckLat - userLat) * Math.PI / 180;
+        const dLng = (truckLng - userLng) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(userLat * Math.PI / 180) * Math.cos(truckLat * Math.PI / 180) *
+                  Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+
+        // Add distance to truck object for sorting
+        truck.distance = distance;
+        
+        return distance <= maxDistanceKm;
+      });
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case 'distance':
+        if (lat && lng) {
+          trucks.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+        }
+        break;
+      case 'rating':
+        trucks.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        break;
+      case 'name':
+        trucks.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        break;
+      case 'reviewCount':
+        trucks.sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0));
+        break;
+      default:
+        // Default sort by lastUpdated
+        trucks.sort((a, b) => new Date(b.lastUpdated) - new Date(a.lastUpdated));
+    }
+
+    // Apply limit
+    trucks = trucks.slice(0, parseInt(limit));
+
+    console.log(`🔍 Enhanced filter found ${trucks.length} trucks`);
+    res.json(trucks);
+    
+  } catch (error) {
+    console.error('❌ Error filtering trucks:', error);
+    res.status(500).json({ message: 'Error filtering food trucks' });
+  }
+});
+
+// Get available filter options for mobile app
+app.get('/api/trucks/filters', async (req, res) => {
+  try {
+    // Get distinct cuisine types
+    const cuisines = await FoodTruck.distinct('cuisine');
+    
+    // Get location-based stats
+    const stats = await FoodTruck.aggregate([
+      { $match: { isActive: true } },
+      {
+        $group: {
+          _id: null,
+          totalTrucks: { $sum: 1 },
+          averageRating: { $avg: '$rating' },
+          openTrucks: {
+            $sum: { $cond: [{ $eq: ['$isOpen', true] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    const filterOptions = {
+      cuisines: cuisines.filter(cuisine => cuisine && cuisine.trim()),
+      stats: stats[0] || { totalTrucks: 0, averageRating: 0, openTrucks: 0 }
+    };
+
+    console.log(`📊 Filter options: ${filterOptions.cuisines.length} cuisines available`);
+    res.json(filterOptions);
+    
+  } catch (error) {
+    console.error('❌ Error getting filter options:', error);
+    res.status(500).json({ message: 'Error getting filter options' });
+  }
+});
+
 // Get nearby food trucks
 app.get('/api/trucks/nearby', async (req, res) => {
   try {
@@ -1887,6 +2058,47 @@ app.put('/api/trucks/:id/menu', async (req, res) => {
   }
 });
 
+// Debug endpoint to check current time logic
+app.get('/api/debug/time', async (req, res) => {
+  try {
+    const now = new Date();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = dayNames[now.getDay()];
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    
+    // Get all trucks and check their open status
+    const trucks = await FoodTruck.find({});
+    const truckStatus = trucks.map(truck => {
+      const todaySchedule = truck.schedule[currentDay];
+      const isOpen = isCurrentlyOpen(truck.schedule);
+      
+      return {
+        id: truck.id,
+        name: truck.name,
+        todaySchedule: todaySchedule,
+        isCurrentlyOpen: isOpen,
+        currentTime: currentTime,
+        currentDay: currentDay
+      };
+    });
+    
+    res.json({
+      success: true,
+      debug: {
+        serverTime: now.toISOString(),
+        localTime: now.toString(),
+        currentDay: currentDay,
+        currentTime: currentTime,
+        dayOfWeek: now.getDay(),
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      },
+      truckStatus: truckStatus
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error checking time debug info', error: error.message });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -1907,4 +2119,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🎉 Data will now persist between restarts!`);
 });
 
-module.exports = app; 
+module.exports = app;
