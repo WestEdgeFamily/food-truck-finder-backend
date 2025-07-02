@@ -19,7 +19,7 @@ app.use(cors({
 app.use(express.json());
 
 // MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://testuser:Test123456@food-truck-finder-clust.nwvuj4n.mongodb.net/foodtruckapp?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://foodtruckuser:apocaltips@food-truck-finder-clust.nwvuj4n.mongodb.net/foodtruckapp?retryWrites=true&w=majority';
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
