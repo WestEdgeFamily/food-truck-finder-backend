@@ -2,9 +2,10 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
-  _id: {
+  userId: {
     type: String,
-    required: true
+    unique: true,
+    sparse: true // Allows null values initially
   },
   email: {
     type: String,
@@ -56,8 +57,13 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
 
-// Hash password before saving
+// Hash password before saving and set userId
 userSchema.pre('save', async function(next) {
+  // Set userId to match _id if not already set
+  if (this.isNew && !this.userId) {
+    this.userId = this._id.toString();
+  }
+  
   // Only hash the password if it has been modified (or is new)
   if (!this.isModified('password')) return next();
   
