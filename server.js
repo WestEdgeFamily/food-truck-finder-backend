@@ -129,8 +129,6 @@ async function initializeDefaultData() {
       console.log('📝 Initializing default users...');
       const defaultUsers = [
         {
-          _id: 'user1',
-          userId: 'user1',
           name: 'John Customer',
           email: 'john@customer.com',
           password: 'TestPass123!',
@@ -138,8 +136,6 @@ async function initializeDefaultData() {
           createdAt: new Date()
         },
         {
-          _id: 'owner1',
-          userId: 'owner1',
           name: 'Mike Rodriguez',
           email: 'mike@tacos.com',
           password: 'TestPass123!',
@@ -149,11 +145,14 @@ async function initializeDefaultData() {
         }
       ];
 
-      await User.insertMany(defaultUsers);
+      const createdUsers = await User.insertMany(defaultUsers);
       console.log('✅ Default users created');
     }
-
-    if (truckCount === 0) {
+    
+    // Find the owner user for truck assignment
+    const ownerUser = await User.findOne({ role: 'owner', email: 'mike@tacos.com' });
+    
+    if (truckCount === 0 && ownerUser) {
       console.log('📝 Initializing default food trucks...');
       const defaultTrucks = [
         {
@@ -176,7 +175,7 @@ async function initializeDefaultData() {
             { name: 'Bulgogi Beef Bowl', price: 14.99, description: 'Marinated beef with vegetables and rice' },
             { name: 'Tofu Veggie Bowl', price: 11.99, description: 'Crispy tofu with fresh vegetables and Korean sauce' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -207,7 +206,7 @@ async function initializeDefaultData() {
             { name: 'Margherita Pizza', price: 15.99, description: 'Fresh mozzarella, basil, and tomato sauce' },
             { name: 'Garlic Bread', price: 6.99, description: 'Homemade bread with garlic butter and herbs' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -238,7 +237,7 @@ async function initializeDefaultData() {
             { name: 'Carnitas Tacos', price: 13.99, description: 'Slow-cooked pork with onions and cilantro' },
             { name: 'Chile Relleno', price: 15.99, description: 'Roasted poblano pepper stuffed with cheese' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -269,7 +268,7 @@ async function initializeDefaultData() {
             { name: 'Chicken Club', price: 10.99, description: 'Grilled chicken breast with bacon and avocado' },
             { name: 'Onion Rings', price: 5.99, description: 'Beer-battered onion rings with ranch dipping sauce' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -300,7 +299,7 @@ async function initializeDefaultData() {
             { name: 'Rocky Road Sundae', price: 8.99, description: 'Chocolate ice cream with marshmallows and nuts' },
             { name: 'Fresh Fruit Popsicle', price: 4.99, description: 'Made with seasonal Utah fruits' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -331,7 +330,7 @@ async function initializeDefaultData() {
             { name: 'Cold Brew Float', price: 5.99, description: 'Cold brew coffee with vanilla ice cream' },
             { name: 'Breakfast Burrito', price: 8.99, description: 'Eggs, cheese, and local sausage' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -362,7 +361,7 @@ async function initializeDefaultData() {
             { name: 'Shrimp Ceviche Bowl', price: 14.99, description: 'Fresh shrimp with citrus, avocado, and cilantro' },
             { name: 'Fish & Chips', price: 15.99, description: 'Classic beer-battered cod with hand-cut fries' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -393,7 +392,7 @@ async function initializeDefaultData() {
             { name: 'Pulled Pork Sandwich', price: 11.99, description: 'Slow-smoked pork with coleslaw on brioche' },
             { name: 'Ribs Half Rack', price: 18.99, description: 'Baby back ribs with house BBQ sauce' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
