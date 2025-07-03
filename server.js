@@ -1,8 +1,33 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
+
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
+
+// JWT Secret (use environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-change-this';
+
+// Rate limiting
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: 'Too many authentication attempts, please try again later'
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // Limit each IP to 100 requests per windowMs
+});
+
+// Apply rate limiting to auth routes
+app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
 
 // Import MongoDB models
 const User = require('./models/User');
@@ -19,7 +44,7 @@ app.use(cors({
 app.use(express.json());
 
 // MongoDB connection
-const MONGODB_URI = 'mongodb+srv://foodtruckuser:Vincent62298@food-truck-finder-clust.nwvuj4n.mongodb.net/foodtruckapp?retryWrites=true&w=majority&appName=food-truck-finder-cluster';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://testuser:Test123456@food-truck-finder-clust.nwvuj4n.mongodb.net/foodtruckapp?retryWrites=true&w=majority';
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
@@ -452,38 +477,69 @@ app.post('/api/auth/login', async (req, res) => {
     
     console.log(`🔐 Login attempt: ${email} as ${role}`);
     
-    const user = await User.findOne({ email, password, role });
+    // Find user by email and role only (not password)
+    const user = await User.findOne({ email, role });
     
     if (user) {
-      // Ensure userId field matches _id for consistency
-      if (!user.userId || user.userId !== user._id.toString()) {
-        console.log(`🔧 Fixing userId field for ${email}`);
-        await User.findByIdAndUpdate(user._id, { userId: user._id.toString() });
-        user.userId = user._id.toString();
-      }
+      // Use bcrypt to compare password
+      const isPasswordValid = await user.comparePassword(password);
       
-      console.log(`✅ Login successful for: ${email}`);
-      console.log(`🆔 User ID: ${user._id}`);
-      
-      // CONSISTENT TOKEN: Always use MongoDB _id
-      const token = `token_${user._id}_${Date.now()}`;
-      
-      // CONSISTENT RESPONSE: Always return _id as the main identifier
-      res.json({
-        success: true,
-        token: token,
-        user: {
-          _id: user._id.toString(),        // MongoDB _id
-          id: user._id.toString(),         // Same as _id for mobile app compatibility  
-          userId: user._id.toString(),     // Same as _id for legacy compatibility
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          businessName: user.businessName
+      if (isPasswordValid) {
+        // Ensure userId field matches _id for consistency
+        if (!user.userId || user.userId !== user._id.toString()) {
+          console.log(`🔧 Fixing userId field for ${email}`);
+          await User.findByIdAndUpdate(user._id, { userId: user._id.toString() });
+          user.userId = user._id.toString();
         }
-      });
+        
+        // Update last login
+        await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+        
+        console.log(`✅ Login successful for: ${email}`);
+        console.log(`🆔 User ID: ${user._id}`);
+        
+        // Generate JWT token
+        const token = jwt.sign(
+          { 
+            id: user._id.toString(),
+            email: user.email,
+            role: user.role 
+          },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        
+        // Generate refresh token
+        const refreshToken = jwt.sign(
+          { id: user._id.toString() },
+          JWT_REFRESH_SECRET,
+          { expiresIn: '7d' }
+        );
+        
+        // Store refresh token in database
+        await User.findByIdAndUpdate(user._id, { refreshToken });
+        
+        // CONSISTENT RESPONSE: Always return _id as the main identifier
+        res.json({
+          success: true,
+          token: token,
+          refreshToken: refreshToken,
+          user: {
+            _id: user._id.toString(),        // MongoDB _id
+            id: user._id.toString(),         // Same as _id for mobile app compatibility  
+            userId: user._id.toString(),     // Same as _id for legacy compatibility
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            businessName: user.businessName
+          }
+        });
+      } else {
+        console.log(`❌ Login failed: Invalid password for ${email}`);
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
     } else {
-      console.log(`❌ Login failed for: ${email} as ${role}`);
+      console.log(`❌ Login failed: User not found ${email} as ${role}`);
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
   } catch (error) {
@@ -523,16 +579,11 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
     
-    // Generate a unique user ID
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Create new user with explicit _id (required by User model)
+    // Create new user (let MongoDB generate the _id)
     const newUser = new User({
-      _id: userId,
-      userId: userId,
       name,
       email,
-      password,
+      password, // Will be hashed by the User model pre-save hook
       role,
       businessName,
       createdAt: new Date()
@@ -595,13 +646,37 @@ app.post('/api/auth/register', async (req, res) => {
       console.log(`🚚 Auto-created food truck for owner: ${businessName} (ID: ${foodTruckId})`);
     }
     
-    // CONSISTENT TOKEN: Always use MongoDB _id
-    const token = `token_${savedUser._id}_${Date.now()}`;
+    // Set userId to match _id for consistency
+    savedUser.userId = savedUser._id.toString();
+    await savedUser.save();
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: savedUser._id.toString(),
+        email: savedUser.email,
+        role: savedUser.role 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Generate refresh token
+    const refreshToken = jwt.sign(
+      { id: savedUser._id.toString() },
+      JWT_REFRESH_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    // Store refresh token
+    savedUser.refreshToken = refreshToken;
+    await savedUser.save();
     
     // CONSISTENT RESPONSE: Always return _id as the main identifier
     res.json({
       success: true,
       token: token,
+      refreshToken: refreshToken,
       user: {
         _id: savedUser._id.toString(),        // MongoDB _id
         id: savedUser._id.toString(),         // Same as _id for mobile app compatibility
@@ -629,17 +704,126 @@ app.get('/api/auth/password-requirements', (req, res) => {
   });
 });
 
-// Food Truck Routes with dynamic open/closed status
+// JWT Verification Middleware
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'No token provided' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, message: 'Token expired' });
+    }
+    return res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+};
+
+// Token refresh endpoint
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, message: 'Refresh token required' });
+    }
+    
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
+    } catch (error) {
+      return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
+    
+    // Find user and verify refresh token matches
+    const user = await User.findById(decoded.id);
+    
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
+    
+    // Generate new access token
+    const newToken = jwt.sign(
+      { 
+        id: user._id.toString(),
+        email: user.email,
+        role: user.role 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      success: true,
+      token: newToken
+    });
+  } catch (error) {
+    console.error('❌ Token refresh error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Logout endpoint
+app.post('/api/auth/logout', verifyToken, async (req, res) => {
+  try {
+    // Clear refresh token
+    await User.findByIdAndUpdate(req.user.id, { refreshToken: null });
+    
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Food Truck Routes with dynamic open/closed status and pagination
 app.get('/api/trucks', async (req, res) => {
   try {
-    const trucks = await FoodTruck.find();
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    
+    // Get total count for pagination metadata
+    const totalCount = await FoodTruck.countDocuments({ isActive: true });
+    const totalPages = Math.ceil(totalCount / limit);
+    
+    // Get paginated trucks
+    const trucks = await FoodTruck.find({ isActive: true })
+      .skip(skip)
+      .limit(limit)
+      .sort({ lastUpdated: -1 });
+    
     // Update open/closed status for all trucks based on current time
     const updatedTrucks = trucks.map(truck => ({
       ...truck.toObject(),
       isOpen: isCurrentlyOpen(truck.schedule)
     }));
-    console.log(`📋 Getting all trucks: ${trucks.length} available`);
-    res.json(updatedTrucks);
+    
+    console.log(`📋 Getting trucks page ${page}/${totalPages}: ${updatedTrucks.length} trucks`);
+    
+    // Return paginated response
+    res.json({
+      success: true,
+      data: updatedTrucks,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
   } catch (error) {
     console.error('❌ Error fetching trucks:', error);
     res.status(500).json({ message: 'Error fetching food trucks' });
