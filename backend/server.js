@@ -1,13 +1,64 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
+
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
+
+// Trust proxy headers (required for Render and other platforms behind reverse proxies)
+app.set('trust proxy', true);
+
+// JWT Secret (use environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-change-this';
+
+// Rate limiting - configured for platforms behind reverse proxies
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: 'Too many authentication attempts, please try again later',
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Handle reverse proxy headers
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For if behind proxy, otherwise use req.ip
+    return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health';
+  }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Handle reverse proxy headers
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For if behind proxy, otherwise use req.ip
+    return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health';
+  }
+});
+
+// Apply rate limiting to auth routes
+app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
 
 // Import MongoDB models
 const User = require('./models/User');
 const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
+const Review = require('./models/Review');
 
 // Middleware - Configure CORS for development (allow all origins)
 app.use(cors({
@@ -97,8 +148,6 @@ async function initializeDefaultData() {
       console.log('📝 Initializing default users...');
       const defaultUsers = [
         {
-          _id: 'user1',
-          userId: 'user1',
           name: 'John Customer',
           email: 'john@customer.com',
           password: 'TestPass123!',
@@ -106,8 +155,6 @@ async function initializeDefaultData() {
           createdAt: new Date()
         },
         {
-          _id: 'owner1',
-          userId: 'owner1',
           name: 'Mike Rodriguez',
           email: 'mike@tacos.com',
           password: 'TestPass123!',
@@ -117,11 +164,14 @@ async function initializeDefaultData() {
         }
       ];
 
-      await User.insertMany(defaultUsers);
+      const createdUsers = await User.insertMany(defaultUsers);
       console.log('✅ Default users created');
     }
-
-    if (truckCount === 0) {
+    
+    // Find the owner user for truck assignment
+    const ownerUser = await User.findOne({ role: 'owner', email: 'mike@tacos.com' });
+    
+    if (truckCount === 0 && ownerUser) {
       console.log('📝 Initializing default food trucks...');
       const defaultTrucks = [
         {
@@ -144,7 +194,7 @@ async function initializeDefaultData() {
             { name: 'Bulgogi Beef Bowl', price: 14.99, description: 'Marinated beef with vegetables and rice' },
             { name: 'Tofu Veggie Bowl', price: 11.99, description: 'Crispy tofu with fresh vegetables and Korean sauce' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -175,7 +225,7 @@ async function initializeDefaultData() {
             { name: 'Margherita Pizza', price: 15.99, description: 'Fresh mozzarella, basil, and tomato sauce' },
             { name: 'Garlic Bread', price: 6.99, description: 'Homemade bread with garlic butter and herbs' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -206,7 +256,7 @@ async function initializeDefaultData() {
             { name: 'Carnitas Tacos', price: 13.99, description: 'Slow-cooked pork with onions and cilantro' },
             { name: 'Chile Relleno', price: 15.99, description: 'Roasted poblano pepper stuffed with cheese' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -237,7 +287,7 @@ async function initializeDefaultData() {
             { name: 'Chicken Club', price: 10.99, description: 'Grilled chicken breast with bacon and avocado' },
             { name: 'Onion Rings', price: 5.99, description: 'Beer-battered onion rings with ranch dipping sauce' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -268,7 +318,7 @@ async function initializeDefaultData() {
             { name: 'Rocky Road Sundae', price: 8.99, description: 'Chocolate ice cream with marshmallows and nuts' },
             { name: 'Fresh Fruit Popsicle', price: 4.99, description: 'Made with seasonal Utah fruits' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -299,7 +349,7 @@ async function initializeDefaultData() {
             { name: 'Cold Brew Float', price: 5.99, description: 'Cold brew coffee with vanilla ice cream' },
             { name: 'Breakfast Burrito', price: 8.99, description: 'Eggs, cheese, and local sausage' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -330,7 +380,7 @@ async function initializeDefaultData() {
             { name: 'Shrimp Ceviche Bowl', price: 14.99, description: 'Fresh shrimp with citrus, avocado, and cilantro' },
             { name: 'Fish & Chips', price: 15.99, description: 'Classic beer-battered cod with hand-cut fries' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -361,7 +411,7 @@ async function initializeDefaultData() {
             { name: 'Pulled Pork Sandwich', price: 11.99, description: 'Slow-smoked pork with coleslaw on brioche' },
             { name: 'Ribs Half Rack', price: 18.99, description: 'Baby back ribs with house BBQ sauce' }
           ],
-          ownerId: 'owner1',
+          ownerId: ownerUser._id.toString(),
           schedule: {
             monday: { open: '00:00', close: '23:59', isOpen: true },
             tuesday: { open: '00:00', close: '23:59', isOpen: true },
@@ -452,38 +502,69 @@ app.post('/api/auth/login', async (req, res) => {
     
     console.log(`🔐 Login attempt: ${email} as ${role}`);
     
-    const user = await User.findOne({ email, password, role });
+    // Find user by email and role only (not password)
+    const user = await User.findOne({ email, role });
     
     if (user) {
-      // Ensure userId field matches _id for consistency
-      if (!user.userId || user.userId !== user._id.toString()) {
-        console.log(`🔧 Fixing userId field for ${email}`);
-        await User.findByIdAndUpdate(user._id, { userId: user._id.toString() });
-        user.userId = user._id.toString();
-      }
+      // Use bcrypt to compare password
+      const isPasswordValid = await user.comparePassword(password);
       
-      console.log(`✅ Login successful for: ${email}`);
-      console.log(`🆔 User ID: ${user._id}`);
-      
-      // CONSISTENT TOKEN: Always use MongoDB _id
-      const token = `token_${user._id}_${Date.now()}`;
-      
-      // CONSISTENT RESPONSE: Always return _id as the main identifier
-      res.json({
-        success: true,
-        token: token,
-        user: {
-          _id: user._id.toString(),        // MongoDB _id
-          id: user._id.toString(),         // Same as _id for mobile app compatibility  
-          userId: user._id.toString(),     // Same as _id for legacy compatibility
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          businessName: user.businessName
+      if (isPasswordValid) {
+        // Ensure userId field matches _id for consistency
+        if (!user.userId || user.userId !== user._id.toString()) {
+          console.log(`🔧 Fixing userId field for ${email}`);
+          await User.findByIdAndUpdate(user._id, { userId: user._id.toString() });
+          user.userId = user._id.toString();
         }
-      });
+        
+        // Update last login
+        await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
+        
+        console.log(`✅ Login successful for: ${email}`);
+        console.log(`🆔 User ID: ${user._id}`);
+        
+        // Generate JWT token
+        const token = jwt.sign(
+          { 
+            id: user._id.toString(),
+            email: user.email,
+            role: user.role 
+          },
+          JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        
+        // Generate refresh token
+        const refreshToken = jwt.sign(
+          { id: user._id.toString() },
+          JWT_REFRESH_SECRET,
+          { expiresIn: '7d' }
+        );
+        
+        // Store refresh token in database
+        await User.findByIdAndUpdate(user._id, { refreshToken });
+        
+        // CONSISTENT RESPONSE: Always return _id as the main identifier
+        res.json({
+          success: true,
+          token: token,
+          refreshToken: refreshToken,
+          user: {
+            _id: user._id.toString(),        // MongoDB _id
+            id: user._id.toString(),         // Same as _id for mobile app compatibility  
+            userId: user._id.toString(),     // Same as _id for legacy compatibility
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            businessName: user.businessName
+          }
+        });
+      } else {
+        console.log(`❌ Login failed: Invalid password for ${email}`);
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
     } else {
-      console.log(`❌ Login failed for: ${email} as ${role}`);
+      console.log(`❌ Login failed: User not found ${email} as ${role}`);
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
   } catch (error) {
@@ -523,16 +604,11 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
     
-    // Generate a unique user ID
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Create new user with explicit _id (required by User model)
+    // Create new user (let MongoDB generate the _id)
     const newUser = new User({
-      _id: userId,
-      userId: userId,
       name,
       email,
-      password,
+      password, // Will be hashed by the User model pre-save hook
       role,
       businessName,
       createdAt: new Date()
@@ -595,13 +671,37 @@ app.post('/api/auth/register', async (req, res) => {
       console.log(`🚚 Auto-created food truck for owner: ${businessName} (ID: ${foodTruckId})`);
     }
     
-    // CONSISTENT TOKEN: Always use MongoDB _id
-    const token = `token_${savedUser._id}_${Date.now()}`;
+    // Set userId to match _id for consistency
+    savedUser.userId = savedUser._id.toString();
+    await savedUser.save();
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        id: savedUser._id.toString(),
+        email: savedUser.email,
+        role: savedUser.role 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Generate refresh token
+    const refreshToken = jwt.sign(
+      { id: savedUser._id.toString() },
+      JWT_REFRESH_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    // Store refresh token
+    savedUser.refreshToken = refreshToken;
+    await savedUser.save();
     
     // CONSISTENT RESPONSE: Always return _id as the main identifier
     res.json({
       success: true,
       token: token,
+      refreshToken: refreshToken,
       user: {
         _id: savedUser._id.toString(),        // MongoDB _id
         id: savedUser._id.toString(),         // Same as _id for mobile app compatibility
@@ -629,17 +729,139 @@ app.get('/api/auth/password-requirements', (req, res) => {
   });
 });
 
-// Food Truck Routes with dynamic open/closed status
+// JWT Verification Middleware
+const verifyToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'No token provided' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, message: 'Token expired' });
+    }
+    return res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+};
+
+// Helper function to verify token without middleware
+const verifyTokenNoMiddleware = async (authHeader) => {
+  try {
+    const token = authHeader?.split(' ')[1];
+    if (!token) return null;
+    
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded;
+  } catch (error) {
+    return null;
+  }
+};
+
+// Token refresh endpoint
+app.post('/api/auth/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, message: 'Refresh token required' });
+    }
+    
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
+    } catch (error) {
+      return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
+    
+    // Find user and verify refresh token matches
+    const user = await User.findById(decoded.id);
+    
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+    }
+    
+    // Generate new access token
+    const newToken = jwt.sign(
+      { 
+        id: user._id.toString(),
+        email: user.email,
+        role: user.role 
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    res.json({
+      success: true,
+      token: newToken
+    });
+  } catch (error) {
+    console.error('❌ Token refresh error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Logout endpoint
+app.post('/api/auth/logout', verifyToken, async (req, res) => {
+  try {
+    // Clear refresh token
+    await User.findByIdAndUpdate(req.user.id, { refreshToken: null });
+    
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Food Truck Routes with dynamic open/closed status and pagination
 app.get('/api/trucks', async (req, res) => {
   try {
-    const trucks = await FoodTruck.find();
+    // Pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    
+    // Get total count for pagination metadata
+    const totalCount = await FoodTruck.countDocuments({ isActive: true });
+    const totalPages = Math.ceil(totalCount / limit);
+    
+    // Get paginated trucks
+    const trucks = await FoodTruck.find({ isActive: true })
+      .skip(skip)
+      .limit(limit)
+      .sort({ lastUpdated: -1 });
+    
     // Update open/closed status for all trucks based on current time
     const updatedTrucks = trucks.map(truck => ({
       ...truck.toObject(),
       isOpen: isCurrentlyOpen(truck.schedule)
     }));
-    console.log(`📋 Getting all trucks: ${trucks.length} available`);
-    res.json(updatedTrucks);
+    
+    console.log(`📋 Getting trucks page ${page}/${totalPages}: ${updatedTrucks.length} trucks`);
+    
+    // Return paginated response
+    res.json({
+      success: true,
+      data: updatedTrucks,
+      pagination: {
+        currentPage: page,
+        totalPages: totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
   } catch (error) {
     console.error('❌ Error fetching trucks:', error);
     res.status(500).json({ message: 'Error fetching food trucks' });
@@ -2096,6 +2318,340 @@ app.get('/api/debug/time', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error checking time debug info', error: error.message });
+  }
+});
+
+// ===== REVIEW MANAGEMENT ROUTES =====
+
+// Get reviews for a specific food truck
+app.get('/api/trucks/:id/reviews', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10, sortBy = 'createdAt' } = req.query;
+    
+    const reviews = await Review.find({ truckId: id })
+      .sort({ [sortBy]: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+    
+    // Add hasUserVotedHelpful field for authenticated users
+    const userId = req.headers.authorization ? 
+      (await verifyTokenNoMiddleware(req.headers.authorization))?.id : null;
+    
+    const reviewsWithVoteStatus = reviews.map(review => {
+      const reviewObj = review.toObject();
+      reviewObj.hasUserVotedHelpful = userId ? review.hasUserVotedHelpful(userId) : false;
+      return reviewObj;
+    });
+    
+    const totalReviews = await Review.countDocuments({ truckId: id });
+    const stats = await Review.getStatsForTruck(id);
+    
+    console.log(`📋 Retrieved ${reviews.length} reviews for truck ${id}`);
+    
+    res.json({
+      success: true,
+      reviews: reviewsWithVoteStatus,
+      stats,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalReviews / limit),
+        totalReviews
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching reviews:', error);
+    res.status(500).json({ message: 'Error fetching reviews' });
+  }
+});
+
+// Add a new review
+app.post('/api/trucks/:id/reviews', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment, photos = [] } = req.body;
+    const userId = req.user.id;
+    
+    // Check if user has already reviewed this truck
+    const existingReview = await Review.findOne({ userId, truckId: id });
+    if (existingReview) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You have already reviewed this food truck' 
+      });
+    }
+    
+    // Get user details
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    // Create new review
+    const newReview = new Review({
+      userId,
+      userName: user.name,
+      truckId: id,
+      rating,
+      comment,
+      photos
+    });
+    
+    await newReview.save();
+    
+    // Update truck rating and review count
+    const stats = await Review.getStatsForTruck(id);
+    await FoodTruck.findOneAndUpdate(
+      { id },
+      { 
+        rating: stats.averageRating,
+        reviewCount: stats.totalReviews,
+        lastUpdated: new Date()
+      }
+    );
+    
+    console.log(`⭐ New review added for truck ${id} by user ${userId}`);
+    
+    res.json({
+      success: true,
+      message: 'Review added successfully',
+      review: newReview
+    });
+  } catch (error) {
+    console.error('❌ Error adding review:', error);
+    res.status(500).json({ message: 'Error adding review' });
+  }
+});
+
+// Update a review
+app.put('/api/reviews/:reviewId', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { rating, comment, photos } = req.body;
+    const userId = req.user.id;
+    
+    const review = await Review.findById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if user owns this review
+    if (review.userId.toString() !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You can only edit your own reviews' 
+      });
+    }
+    
+    // Update review
+    review.rating = rating || review.rating;
+    review.comment = comment || review.comment;
+    review.photos = photos || review.photos;
+    
+    await review.save();
+    
+    // Update truck rating
+    const stats = await Review.getStatsForTruck(review.truckId);
+    await FoodTruck.findOneAndUpdate(
+      { id: review.truckId },
+      { 
+        rating: stats.averageRating,
+        lastUpdated: new Date()
+      }
+    );
+    
+    console.log(`✏️ Review ${reviewId} updated`);
+    
+    res.json({
+      success: true,
+      message: 'Review updated successfully',
+      review
+    });
+  } catch (error) {
+    console.error('❌ Error updating review:', error);
+    res.status(500).json({ message: 'Error updating review' });
+  }
+});
+
+// Delete a review
+app.delete('/api/reviews/:reviewId', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+    
+    const review = await Review.findById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if user owns this review or is admin
+    if (review.userId.toString() !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You can only delete your own reviews' 
+      });
+    }
+    
+    const truckId = review.truckId;
+    await review.deleteOne();
+    
+    // Update truck rating
+    const stats = await Review.getStatsForTruck(truckId);
+    await FoodTruck.findOneAndUpdate(
+      { id: truckId },
+      { 
+        rating: stats.averageRating,
+        reviewCount: stats.totalReviews,
+        lastUpdated: new Date()
+      }
+    );
+    
+    console.log(`🗑️ Review ${reviewId} deleted`);
+    
+    res.json({
+      success: true,
+      message: 'Review deleted successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting review:', error);
+    res.status(500).json({ message: 'Error deleting review' });
+  }
+});
+
+// Mark review as helpful
+app.post('/api/reviews/:reviewId/helpful', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+    
+    const review = await Review.findById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if user has already voted
+    if (review.hasUserVotedHelpful(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You have already marked this review as helpful' 
+      });
+    }
+    
+    // Add vote
+    review.helpfulVotes.push({ userId });
+    review.helpfulCount += 1;
+    await review.save();
+    
+    console.log(`👍 Review ${reviewId} marked as helpful by user ${userId}`);
+    
+    res.json({
+      success: true,
+      message: 'Review marked as helpful',
+      helpfulCount: review.helpfulCount
+    });
+  } catch (error) {
+    console.error('❌ Error marking review as helpful:', error);
+    res.status(500).json({ message: 'Error marking review as helpful' });
+  }
+});
+
+// Get user's reviews
+app.get('/api/users/:userId/reviews', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    
+    const reviews = await Review.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+    
+    const totalReviews = await Review.countDocuments({ userId });
+    
+    console.log(`📋 Retrieved ${reviews.length} reviews for user ${userId}`);
+    
+    res.json({
+      success: true,
+      reviews,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalReviews / limit),
+        totalReviews
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching user reviews:', error);
+    res.status(500).json({ message: 'Error fetching user reviews' });
+  }
+});
+
+// Owner response to review
+app.post('/api/reviews/:reviewId/response', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { text } = req.body;
+    const userId = req.user.id;
+    
+    if (req.user.role !== 'owner') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Only food truck owners can respond to reviews' 
+      });
+    }
+    
+    const review = await Review.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Verify owner owns the truck being reviewed
+    const truck = await FoodTruck.findOne({ id: review.truckId });
+    if (!truck || truck.ownerId !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You can only respond to reviews for your own food truck' 
+      });
+    }
+    
+    // Add response
+    review.response = {
+      text,
+      respondedAt: new Date(),
+      respondedBy: req.user.name || 'Owner'
+    };
+    
+    await review.save();
+    
+    console.log(`💬 Owner responded to review ${reviewId}`);
+    
+    res.json({
+      success: true,
+      message: 'Response added successfully',
+      review
+    });
+  } catch (error) {
+    console.error('❌ Error adding response:', error);
+    res.status(500).json({ message: 'Error adding response' });
   }
 });
 
