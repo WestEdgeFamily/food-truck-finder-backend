@@ -16,13 +16,22 @@ app.set('trust proxy', true);
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-change-this';
 
-// Rate limiting
+// Rate limiting - configured for platforms behind reverse proxies
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit each IP to 5 requests per windowMs
   message: 'Too many authentication attempts, please try again later',
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Handle reverse proxy headers
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For if behind proxy, otherwise use req.ip
+    return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health';
+  }
 });
 
 const apiLimiter = rateLimit({
@@ -30,6 +39,15 @@ const apiLimiter = rateLimit({
   max: 100, // Limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  // Handle reverse proxy headers
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For if behind proxy, otherwise use req.ip
+    return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+  },
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health';
+  }
 });
 
 // Apply rate limiting to auth routes
