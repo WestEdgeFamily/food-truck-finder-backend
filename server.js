@@ -40,6 +40,7 @@ app.use('/api', apiLimiter);
 const User = require('./models/User');
 const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
+const Review = require('./models/Review');
 
 // Middleware - Configure CORS for development (allow all origins)
 app.use(cors({
@@ -2286,6 +2287,331 @@ app.get('/api/debug/time', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error checking time debug info', error: error.message });
+  }
+});
+
+// ===== REVIEW MANAGEMENT ROUTES =====
+
+// Get reviews for a specific food truck
+app.get('/api/trucks/:id/reviews', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10, sortBy = 'createdAt' } = req.query;
+    
+    const reviews = await Review.find({ truckId: id })
+      .sort({ [sortBy]: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .populate('userId', 'name')
+      .exec();
+    
+    const totalReviews = await Review.countDocuments({ truckId: id });
+    const stats = await Review.getStatsForTruck(id);
+    
+    console.log(`📋 Retrieved ${reviews.length} reviews for truck ${id}`);
+    
+    res.json({
+      success: true,
+      reviews,
+      stats,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalReviews / limit),
+        totalReviews
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching reviews:', error);
+    res.status(500).json({ message: 'Error fetching reviews' });
+  }
+});
+
+// Add a new review
+app.post('/api/trucks/:id/reviews', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment, photos = [] } = req.body;
+    const userId = req.user.id;
+    
+    // Check if user has already reviewed this truck
+    const existingReview = await Review.findOne({ userId, truckId: id });
+    if (existingReview) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You have already reviewed this food truck' 
+      });
+    }
+    
+    // Get user details
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    // Create new review
+    const newReview = new Review({
+      userId,
+      userName: user.name,
+      truckId: id,
+      rating,
+      comment,
+      photos
+    });
+    
+    await newReview.save();
+    
+    // Update truck rating and review count
+    const stats = await Review.getStatsForTruck(id);
+    await FoodTruck.findOneAndUpdate(
+      { id },
+      { 
+        rating: stats.averageRating,
+        reviewCount: stats.totalReviews,
+        lastUpdated: new Date()
+      }
+    );
+    
+    console.log(`⭐ New review added for truck ${id} by user ${userId}`);
+    
+    res.json({
+      success: true,
+      message: 'Review added successfully',
+      review: newReview
+    });
+  } catch (error) {
+    console.error('❌ Error adding review:', error);
+    res.status(500).json({ message: 'Error adding review' });
+  }
+});
+
+// Update a review
+app.put('/api/reviews/:reviewId', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { rating, comment, photos } = req.body;
+    const userId = req.user.id;
+    
+    const review = await Review.findById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if user owns this review
+    if (review.userId.toString() !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You can only edit your own reviews' 
+      });
+    }
+    
+    // Update review
+    review.rating = rating || review.rating;
+    review.comment = comment || review.comment;
+    review.photos = photos || review.photos;
+    
+    await review.save();
+    
+    // Update truck rating
+    const stats = await Review.getStatsForTruck(review.truckId);
+    await FoodTruck.findOneAndUpdate(
+      { id: review.truckId },
+      { 
+        rating: stats.averageRating,
+        lastUpdated: new Date()
+      }
+    );
+    
+    console.log(`✏️ Review ${reviewId} updated`);
+    
+    res.json({
+      success: true,
+      message: 'Review updated successfully',
+      review
+    });
+  } catch (error) {
+    console.error('❌ Error updating review:', error);
+    res.status(500).json({ message: 'Error updating review' });
+  }
+});
+
+// Delete a review
+app.delete('/api/reviews/:reviewId', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+    
+    const review = await Review.findById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if user owns this review or is admin
+    if (review.userId.toString() !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You can only delete your own reviews' 
+      });
+    }
+    
+    const truckId = review.truckId;
+    await review.deleteOne();
+    
+    // Update truck rating
+    const stats = await Review.getStatsForTruck(truckId);
+    await FoodTruck.findOneAndUpdate(
+      { id: truckId },
+      { 
+        rating: stats.averageRating,
+        reviewCount: stats.totalReviews,
+        lastUpdated: new Date()
+      }
+    );
+    
+    console.log(`🗑️ Review ${reviewId} deleted`);
+    
+    res.json({
+      success: true,
+      message: 'Review deleted successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting review:', error);
+    res.status(500).json({ message: 'Error deleting review' });
+  }
+});
+
+// Mark review as helpful
+app.post('/api/reviews/:reviewId/helpful', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const userId = req.user.id;
+    
+    const review = await Review.findById(reviewId);
+    
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if user has already voted
+    if (review.hasUserVotedHelpful(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You have already marked this review as helpful' 
+      });
+    }
+    
+    // Add vote
+    review.helpfulVotes.push({ userId });
+    review.helpfulCount += 1;
+    await review.save();
+    
+    console.log(`👍 Review ${reviewId} marked as helpful by user ${userId}`);
+    
+    res.json({
+      success: true,
+      message: 'Review marked as helpful',
+      helpfulCount: review.helpfulCount
+    });
+  } catch (error) {
+    console.error('❌ Error marking review as helpful:', error);
+    res.status(500).json({ message: 'Error marking review as helpful' });
+  }
+});
+
+// Get user's reviews
+app.get('/api/users/:userId/reviews', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+    
+    const reviews = await Review.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .exec();
+    
+    const totalReviews = await Review.countDocuments({ userId });
+    
+    console.log(`📋 Retrieved ${reviews.length} reviews for user ${userId}`);
+    
+    res.json({
+      success: true,
+      reviews,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalReviews / limit),
+        totalReviews
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching user reviews:', error);
+    res.status(500).json({ message: 'Error fetching user reviews' });
+  }
+});
+
+// Owner response to review
+app.post('/api/reviews/:reviewId/response', verifyToken, async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const { text } = req.body;
+    const userId = req.user.id;
+    
+    if (req.user.role !== 'owner') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Only food truck owners can respond to reviews' 
+      });
+    }
+    
+    const review = await Review.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Verify owner owns the truck being reviewed
+    const truck = await FoodTruck.findOne({ id: review.truckId });
+    if (!truck || truck.ownerId !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You can only respond to reviews for your own food truck' 
+      });
+    }
+    
+    // Add response
+    review.response = {
+      text,
+      respondedAt: new Date(),
+      respondedBy: req.user.name || 'Owner'
+    };
+    
+    await review.save();
+    
+    console.log(`💬 Owner responded to review ${reviewId}`);
+    
+    res.json({
+      success: true,
+      message: 'Response added successfully',
+      review
+    });
+  } catch (error) {
+    console.error('❌ Error adding response:', error);
+    res.status(500).json({ message: 'Error adding response' });
   }
 });
 
