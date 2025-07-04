@@ -731,6 +731,19 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+// Helper function to verify token without middleware
+const verifyTokenNoMiddleware = async (authHeader) => {
+  try {
+    const token = authHeader?.split(' ')[1];
+    if (!token) return null;
+    
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded;
+  } catch (error) {
+    return null;
+  }
+};
+
 // Token refresh endpoint
 app.post('/api/auth/refresh', async (req, res) => {
   try {
@@ -2302,8 +2315,17 @@ app.get('/api/trucks/:id/reviews', async (req, res) => {
       .sort({ [sortBy]: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .populate('userId', 'name')
       .exec();
+    
+    // Add hasUserVotedHelpful field for authenticated users
+    const userId = req.headers.authorization ? 
+      (await verifyTokenNoMiddleware(req.headers.authorization))?.id : null;
+    
+    const reviewsWithVoteStatus = reviews.map(review => {
+      const reviewObj = review.toObject();
+      reviewObj.hasUserVotedHelpful = userId ? review.hasUserVotedHelpful(userId) : false;
+      return reviewObj;
+    });
     
     const totalReviews = await Review.countDocuments({ truckId: id });
     const stats = await Review.getStatsForTruck(id);
@@ -2312,7 +2334,7 @@ app.get('/api/trucks/:id/reviews', async (req, res) => {
     
     res.json({
       success: true,
-      reviews,
+      reviews: reviewsWithVoteStatus,
       stats,
       pagination: {
         currentPage: parseInt(page),
