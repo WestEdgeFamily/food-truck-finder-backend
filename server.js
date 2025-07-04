@@ -59,6 +59,9 @@ const User = require('./models/User');
 const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
 const Review = require('./models/Review');
+const SocialAccount = require('./models/SocialAccount');
+const SocialPost = require('./models/SocialPost');
+const Campaign = require('./models/Campaign');
 
 // Middleware - Configure CORS for development (allow all origins)
 app.use(cors({
@@ -2654,6 +2657,479 @@ app.post('/api/reviews/:reviewId/response', verifyToken, async (req, res) => {
     res.status(500).json({ message: 'Error adding response' });
   }
 });
+
+// ===== SOCIAL MEDIA MANAGEMENT ROUTES =====
+
+// Connect social media account
+app.post('/api/social/accounts/connect', verifyToken, async (req, res) => {
+  try {
+    const { truckId, platform, accessToken, refreshToken, accountName, accountId, tokenExpiry } = req.body;
+    const ownerId = req.user.id;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    // Create or update social account
+    const socialAccount = await SocialAccount.findOneAndUpdate(
+      { truckId, platform },
+      {
+        ownerId,
+        truckId,
+        platform,
+        accessToken,
+        refreshToken,
+        accountName,
+        accountId,
+        tokenExpiry: tokenExpiry ? new Date(tokenExpiry) : null,
+        isActive: true
+      },
+      { new: true, upsert: true }
+    );
+    
+    console.log(`✅ Connected ${platform} account for truck ${truckId}`);
+    res.json({ success: true, account: socialAccount });
+  } catch (error) {
+    console.error('❌ Error connecting social account:', error);
+    res.status(500).json({ message: 'Error connecting social account' });
+  }
+});
+
+// Get connected social accounts
+app.get('/api/social/accounts/:truckId', verifyToken, async (req, res) => {
+  try {
+    const { truckId } = req.params;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const accounts = await SocialAccount.find({ truckId, isActive: true });
+    
+    res.json({ success: true, accounts });
+  } catch (error) {
+    console.error('❌ Error fetching social accounts:', error);
+    res.status(500).json({ message: 'Error fetching social accounts' });
+  }
+});
+
+// Disconnect social account
+app.delete('/api/social/accounts/:accountId', verifyToken, async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const account = await SocialAccount.findById(accountId);
+    if (!account || account.ownerId !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    account.isActive = false;
+    await account.save();
+    
+    console.log(`🔌 Disconnected ${account.platform} account`);
+    res.json({ success: true, message: 'Account disconnected' });
+  } catch (error) {
+    console.error('❌ Error disconnecting account:', error);
+    res.status(500).json({ message: 'Error disconnecting account' });
+  }
+});
+
+// Create social media post
+app.post('/api/social/posts', verifyToken, async (req, res) => {
+  try {
+    const { truckId, content, platforms, scheduledTime, isTemplate, templateName, templateCategory, campaignId } = req.body;
+    const ownerId = req.user.id;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const post = new SocialPost({
+      truckId,
+      ownerId,
+      content,
+      platforms: platforms.map(p => ({ name: p, status: 'pending' })),
+      status: scheduledTime ? 'scheduled' : 'draft',
+      scheduledTime: scheduledTime ? new Date(scheduledTime) : null,
+      isTemplate,
+      templateName,
+      templateCategory,
+      campaignId
+    });
+    
+    await post.save();
+    
+    // Add to campaign if specified
+    if (campaignId) {
+      const campaign = await Campaign.findById(campaignId);
+      if (campaign) {
+        await campaign.addPost(post._id.toString());
+      }
+    }
+    
+    console.log(`📝 Created social post for truck ${truckId}`);
+    res.json({ success: true, post });
+  } catch (error) {
+    console.error('❌ Error creating social post:', error);
+    res.status(500).json({ message: 'Error creating social post' });
+  }
+});
+
+// Get social posts
+app.get('/api/social/posts/:truckId', verifyToken, async (req, res) => {
+  try {
+    const { truckId } = req.params;
+    const { status, isTemplate, page = 1, limit = 20 } = req.query;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const query = { truckId };
+    if (status) query.status = status;
+    if (isTemplate !== undefined) query.isTemplate = isTemplate === 'true';
+    
+    const posts = await SocialPost.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+      
+    const total = await SocialPost.countDocuments(query);
+    
+    res.json({
+      success: true,
+      posts,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalItems: total
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching social posts:', error);
+    res.status(500).json({ message: 'Error fetching social posts' });
+  }
+});
+
+// Update social post
+app.put('/api/social/posts/:postId', verifyToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const updates = req.body;
+    
+    const post = await SocialPost.findById(postId);
+    if (!post || post.ownerId !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    // Prevent updating published posts
+    if (post.status === 'published') {
+      return res.status(400).json({ message: 'Cannot edit published posts' });
+    }
+    
+    Object.assign(post, updates);
+    await post.save();
+    
+    console.log(`✏️ Updated social post ${postId}`);
+    res.json({ success: true, post });
+  } catch (error) {
+    console.error('❌ Error updating social post:', error);
+    res.status(500).json({ message: 'Error updating social post' });
+  }
+});
+
+// Delete social post
+app.delete('/api/social/posts/:postId', verifyToken, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    
+    const post = await SocialPost.findById(postId);
+    if (!post || post.ownerId !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    if (post.status === 'published') {
+      post.status = 'deleted';
+      await post.save();
+    } else {
+      await post.deleteOne();
+    }
+    
+    console.log(`🗑️ Deleted social post ${postId}`);
+    res.json({ success: true, message: 'Post deleted' });
+  } catch (error) {
+    console.error('❌ Error deleting social post:', error);
+    res.status(500).json({ message: 'Error deleting social post' });
+  }
+});
+
+// Get content templates
+app.get('/api/social/templates/:truckId', verifyToken, async (req, res) => {
+  try {
+    const { truckId } = req.params;
+    const { category } = req.query;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const templates = await SocialPost.getTemplates(truckId, category);
+    
+    // Also return default templates if no custom ones exist
+    const defaultTemplates = getDefaultTemplates(category);
+    
+    res.json({
+      success: true,
+      templates,
+      defaultTemplates
+    });
+  } catch (error) {
+    console.error('❌ Error fetching templates:', error);
+    res.status(500).json({ message: 'Error fetching templates' });
+  }
+});
+
+// Get social media calendar
+app.get('/api/social/calendar/:truckId', verifyToken, async (req, res) => {
+  try {
+    const { truckId } = req.params;
+    const { startDate, endDate } = req.query;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const posts = await SocialPost.getScheduledPosts(
+      truckId,
+      new Date(startDate),
+      new Date(endDate)
+    );
+    
+    res.json({ success: true, posts });
+  } catch (error) {
+    console.error('❌ Error fetching calendar:', error);
+    res.status(500).json({ message: 'Error fetching calendar' });
+  }
+});
+
+// Get social analytics
+app.get('/api/social/analytics/:truckId', verifyToken, async (req, res) => {
+  try {
+    const { truckId } = req.params;
+    const { startDate, endDate, platform } = req.query;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const query = {
+      truckId,
+      status: 'published',
+      publishedTime: {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      }
+    };
+    
+    if (platform) {
+      query['platforms.name'] = platform;
+    }
+    
+    const posts = await SocialPost.find(query);
+    
+    // Aggregate analytics
+    const analytics = {
+      totalPosts: posts.length,
+      totalReach: posts.reduce((sum, p) => sum + p.analytics.reach, 0),
+      totalEngagement: posts.reduce((sum, p) => sum + p.analytics.engagement, 0),
+      totalImpressions: posts.reduce((sum, p) => sum + p.analytics.impressions, 0),
+      avgEngagementRate: 0,
+      topPosts: posts
+        .sort((a, b) => b.analytics.engagement - a.analytics.engagement)
+        .slice(0, 5),
+      performanceByPlatform: {}
+    };
+    
+    // Calculate average engagement rate
+    if (analytics.totalReach > 0) {
+      analytics.avgEngagementRate = (analytics.totalEngagement / analytics.totalReach * 100).toFixed(2);
+    }
+    
+    // Group by platform
+    const platforms = ['instagram', 'facebook', 'twitter'];
+    platforms.forEach(platform => {
+      const platformPosts = posts.filter(p => p.platforms.some(pl => pl.name === platform));
+      analytics.performanceByPlatform[platform] = {
+        posts: platformPosts.length,
+        reach: platformPosts.reduce((sum, p) => sum + p.analytics.reach, 0),
+        engagement: platformPosts.reduce((sum, p) => sum + p.analytics.engagement, 0)
+      };
+    });
+    
+    res.json({ success: true, analytics });
+  } catch (error) {
+    console.error('❌ Error fetching analytics:', error);
+    res.status(500).json({ message: 'Error fetching analytics' });
+  }
+});
+
+// Create campaign
+app.post('/api/social/campaigns', verifyToken, async (req, res) => {
+  try {
+    const campaignData = req.body;
+    campaignData.ownerId = req.user.id;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: campaignData.truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const campaign = new Campaign(campaignData);
+    await campaign.save();
+    
+    console.log(`🎯 Created campaign: ${campaign.name}`);
+    res.json({ success: true, campaign });
+  } catch (error) {
+    console.error('❌ Error creating campaign:', error);
+    res.status(500).json({ message: 'Error creating campaign' });
+  }
+});
+
+// Get campaigns
+app.get('/api/social/campaigns/:truckId', verifyToken, async (req, res) => {
+  try {
+    const { truckId } = req.params;
+    const { status } = req.query;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    const query = { truckId };
+    if (status) query.status = status;
+    
+    const campaigns = await Campaign.find(query).sort({ createdAt: -1 });
+    
+    res.json({ success: true, campaigns });
+  } catch (error) {
+    console.error('❌ Error fetching campaigns:', error);
+    res.status(500).json({ message: 'Error fetching campaigns' });
+  }
+});
+
+// Update campaign
+app.put('/api/social/campaigns/:campaignId', verifyToken, async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    
+    const campaign = await Campaign.findById(campaignId);
+    if (!campaign || campaign.ownerId !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    Object.assign(campaign, req.body);
+    await campaign.save();
+    
+    console.log(`✏️ Updated campaign: ${campaign.name}`);
+    res.json({ success: true, campaign });
+  } catch (error) {
+    console.error('❌ Error updating campaign:', error);
+    res.status(500).json({ message: 'Error updating campaign' });
+  }
+});
+
+// Helper function for default templates
+function getDefaultTemplates(category) {
+  const templates = {
+    'daily-special': [
+      {
+        name: 'Today\'s Special',
+        content: {
+          text: '🌟 TODAY\'S SPECIAL 🌟\n\n{special_name}\n{price}\n\n{description}\n\nFind us at: {location}\n\n#foodtruck #dailyspecial #{cuisine}food',
+          hashtags: ['foodtruck', 'dailyspecial', 'foodie', 'streetfood']
+        }
+      }
+    ],
+    'location-update': [
+      {
+        name: 'Location Update',
+        content: {
+          text: '📍 WE\'RE HERE! 📍\n\nCome find us at {location}!\n\nServing until {closing_time}\n\n{menu_highlights}\n\n#foodtruck #{city}eats',
+          hashtags: ['foodtruck', 'foodtrucklife', 'streetfood']
+        }
+      }
+    ],
+    'new-menu': [
+      {
+        name: 'New Menu Item',
+        content: {
+          text: '🎉 NEW ON THE MENU! 🎉\n\nIntroducing {item_name}\n\n{description}\n\nOnly ${price}\n\nCome try it today!\n\n#newmenu #foodtruck',
+          hashtags: ['newmenu', 'foodtruck', 'tryit']
+        }
+      }
+    ]
+  };
+  
+  return category ? templates[category] || [] : Object.values(templates).flat();
+}
+
+// AI content generation endpoint (mock for now)
+app.post('/api/social/generate-content', verifyToken, async (req, res) => {
+  try {
+    const { truckId, type, context } = req.body;
+    
+    // Verify user owns the truck
+    const truck = await FoodTruck.findOne({ id: truckId, ownerId: req.user.id });
+    if (!truck) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+    
+    // Mock AI-generated content
+    const generatedContent = generateAIContent(truck, type, context);
+    
+    res.json({ success: true, content: generatedContent });
+  } catch (error) {
+    console.error('❌ Error generating content:', error);
+    res.status(500).json({ message: 'Error generating content' });
+  }
+});
+
+// Mock AI content generator
+function generateAIContent(truck, type, context) {
+  const templates = {
+    'engagement': {
+      text: `🤔 What's your favorite item from ${truck.name}?\n\nComment below and let us know! The most popular choice might become our special next week! 👇\n\n#${truck.cuisine.toLowerCase()}food #foodtruck #yourchoice`,
+      hashtags: ['foodtruck', 'engagement', 'foodie', truck.cuisine.toLowerCase()]
+    },
+    'promotion': {
+      text: `🎊 FLASH SALE ALERT! 🎊\n\nGet 20% off all orders at ${truck.name} today only!\n\nShow this post at checkout to redeem.\n\nFind us at: ${truck.location.address}\n\n#flashsale #discount #foodtruck`,
+      hashtags: ['flashsale', 'discount', 'limitedtime', 'foodtruck']
+    },
+    'menu-highlight': {
+      text: `😋 CUSTOMER FAVORITE ALERT! 😋\n\nOur ${context.item || 'signature dish'} has been flying off the truck!\n\n${context.description || 'Made with love and the freshest ingredients.'}\n\nCome taste why everyone's talking about it!\n\n#${truck.cuisine.toLowerCase()} #musttry`,
+      hashtags: ['customerfavorite', 'musttry', 'foodtruck', truck.cuisine.toLowerCase()]
+    }
+  };
+  
+  return templates[type] || templates['engagement'];
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
