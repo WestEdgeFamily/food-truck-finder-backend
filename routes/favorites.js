@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const FoodTruck = require('../models/FoodTruck');
 const Favorite = require('../models/Favorite');
+const logger = require('../utils/logger');
+
 
 // Check if favorites feature is available
 router.get('/check', async (req, res) => {
