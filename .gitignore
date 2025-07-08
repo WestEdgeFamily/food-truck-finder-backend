@@ -1,8 +1,157 @@
+# Dependencies
 node_modules/
-.env
-.DS_Store
-*.log
 npm-debug.log*
-.nyc_output
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build output
+dist/
+build/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# Testing
 coverage/
-.tmp/ 
+
+# Temporary files
+tmp/
+temp/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# TypeScript v1 declaration files
+typings/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Backup files
+backup_before_fix/
+uploads/
+public/
+scripts/
+deploy/
+*.zip
+*.html
+test-*.js
+reset-*.js
+check-*.js
+social-*.js
+dashboard.html
+Dockerfile
+
+# Database files
+data/
+
+# Development and test files
+debug-*.js
+fix-*.js
+clear-*.js
+populate-*.js
+update-*.js
+check-*.js
+reset-*.js
+social-media-tracker.js
+
+# Alternative config files
+package-updated.json
+server-mongodb.js
+github_server.js
+remote_server.js
+
+# Data files
+utah-food-trucks-*.json
+
+# Test and development utilities
+test.html
+dashboard.html 
