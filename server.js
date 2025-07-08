@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
+const { upload } = require('./config/cloudinary');
 const { body, validationResult } = require('express-validator');
 require('dotenv').config();
 
