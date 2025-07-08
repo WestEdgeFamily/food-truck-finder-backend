@@ -4,22 +4,60 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const compression = require('compression');
+const morgan = require('morgan');
+const { body, validationResult } = require('express-validator');
 require('dotenv').config();
+
+// Import logger and validation
+const logger = require('./utils/logger');
+const { 
+  validateRegister, 
+  validateLogin, 
+  validateUpdateProfile,
+  validateChangeEmail,
+  validateChangePassword,
+  validateCreateTruck,
+  validateUpdateLocation,
+  validateMenuItem,
+  validateCreateReview,
+  validateMongoId,
+  validatePagination,
+  sanitizeInput
+} = require('./middleware/validation');
+const { errorHandler, notFound, asyncHandler } = require('./middleware/errorHandler');
+const emailService = require('./services/emailService');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Security middleware
+app.use(helmet());
+app.use(compression());
+
+// Logging middleware
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan('combined', { stream: logger.stream }));
+}
+
 // Trust proxy headers (required for Render and other platforms behind reverse proxies)
 app.set('trust proxy', true);
 
-// JWT Secret (use environment variable in production)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-change-this';
+// JWT Secrets - Required environment variables
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+
+// Validate required environment variables
+if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+  logger.error('❌ Missing required JWT secrets in environment variables');
+  process.exit(1);
+}
 
 // Rate limiting - configured for platforms behind reverse proxies
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_AUTH_MAX) || 5, // Limit each IP to 5 requests per windowMs
   message: 'Too many authentication attempts, please try again later',
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -35,8 +73,8 @@ const authLimiter = rateLimit({
 });
 
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_API_MAX) || 100, // Limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
   // Handle reverse proxy headers
@@ -63,25 +101,50 @@ const SocialAccount = require('./models/SocialAccount');
 const SocialPost = require('./models/SocialPost');
 const Campaign = require('./models/Campaign');
 
-// Middleware - Configure CORS for development (allow all origins)
-app.use(cors({
-  origin: true, // Allow all origins for development
+// Configure CORS for production
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Parse allowed origins from environment variable
+    const allowedOrigins = process.env.CORS_ORIGIN 
+      ? process.env.CORS_ORIGIN.split(',')
+      : ['http://localhost:3000', 'http://localhost:3001']; // Default for development
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Global input sanitization
+app.use(sanitizeInput);
 
 // MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://testuser:Test123456@food-truck-finder-clust.nwvuj4n.mongodb.net/foodtruckapp?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  logger.error('❌ Missing MONGODB_URI in environment variables');
+  process.exit(1);
+}
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
-    console.log('✅ Connected to MongoDB Atlas successfully!');
+    logger.info('✅ Connected to MongoDB Atlas successfully!');
     initializeDefaultData();
   })
   .catch((error) => {
-    console.error('❌ MongoDB connection error:', error);
+    logger.error('❌ MongoDB connection error:', error);
     process.exit(1);
   });
 
@@ -148,7 +211,7 @@ async function initializeDefaultData() {
     const truckCount = await FoodTruck.countDocuments();
     
     if (userCount === 0) {
-      console.log('📝 Initializing default users...');
+      logger.info('📝 Initializing default users...');
       const defaultUsers = [
         {
           name: 'John Customer',
@@ -168,14 +231,14 @@ async function initializeDefaultData() {
       ];
 
       const createdUsers = await User.insertMany(defaultUsers);
-      console.log('✅ Default users created');
+      logger.info('✅ Default users created');
     }
     
     // Find the owner user for truck assignment
     const ownerUser = await User.findOne({ role: 'owner', email: 'mike@tacos.com' });
     
     if (truckCount === 0 && ownerUser) {
-      console.log('📝 Initializing default food trucks...');
+      logger.info('📝 Initializing default food trucks...');
       const defaultTrucks = [
         {
           id: '1',
@@ -428,12 +491,12 @@ async function initializeDefaultData() {
       ];
       
       await FoodTruck.insertMany(defaultTrucks);
-      console.log('✅ Default food trucks created');
+      logger.info('✅ Default food trucks created');
     }
 
-    console.log('🎉 Database initialization complete!');
+    logger.info('🎉 Database initialization complete!');
   } catch (error) {
-    console.error('❌ Error initializing default data:', error);
+    logger.error('❌ Error initializing default data:', error);
   }
 }
 
@@ -499,11 +562,11 @@ app.get('/api/auth/password-requirements', (req, res) => {
 });
 
 // Auth Routes (REMOVED PHONE NUMBER REQUIREMENTS)
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', sanitizeInput, validateLogin, async (req, res) => {
   try {
     const { email, password, role } = req.body;
     
-    console.log(`🔐 Login attempt: ${email} as ${role}`);
+    logger.debug(`🔐 Login attempt: ${email} as ${role}`);
     
     // Find user by email and role only (not password)
     const user = await User.findOne({ email, role });
@@ -515,7 +578,7 @@ app.post('/api/auth/login', async (req, res) => {
       if (isPasswordValid) {
         // Ensure userId field matches _id for consistency
         if (!user.userId || user.userId !== user._id.toString()) {
-          console.log(`🔧 Fixing userId field for ${email}`);
+          logger.debug(`🔧 Fixing userId field for ${email}`);
           await User.findByIdAndUpdate(user._id, { userId: user._id.toString() });
           user.userId = user._id.toString();
         }
@@ -523,8 +586,8 @@ app.post('/api/auth/login', async (req, res) => {
         // Update last login
         await User.findByIdAndUpdate(user._id, { lastLogin: new Date() });
         
-        console.log(`✅ Login successful for: ${email}`);
-        console.log(`🆔 User ID: ${user._id}`);
+        logger.info(`✅ Login successful for: ${email}`);
+        logger.debug(`🆔 User ID: ${user._id}`);
         
         // Generate JWT token
         const token = jwt.sign(
@@ -563,29 +626,29 @@ app.post('/api/auth/login', async (req, res) => {
           }
         });
       } else {
-        console.log(`❌ Login failed: Invalid password for ${email}`);
+        logger.warn(`❌ Login failed: Invalid password for ${email}`);
         res.status(401).json({ success: false, message: 'Invalid credentials' });
       }
     } else {
-      console.log(`❌ Login failed: User not found ${email} as ${role}`);
+      logger.warn(`❌ Login failed: User not found ${email} as ${role}`);
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
   } catch (error) {
-    console.error('❌ Login error:', error);
+    logger.error('❌ Login error:', error);
     res.status(500).json({ success: false, message: 'Server error during login' });
   }
 });
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', sanitizeInput, validateRegister, async (req, res) => {
   try {
     const { name, email, password, role, businessName } = req.body;
     
-    console.log(`📝 Registration attempt: ${email} as ${role}`);
+    logger.debug(`📝 Registration attempt: ${email} as ${role}`);
     
     // Validate password requirements
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
-      console.log(`❌ Registration failed: Password does not meet requirements`);
+      logger.warn(`❌ Registration failed: Password does not meet requirements`);
       return res.status(400).json({ 
         success: false, 
         message: 'Password does not meet requirements',
@@ -603,7 +666,7 @@ app.post('/api/auth/register', async (req, res) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      console.log(`❌ Registration failed: Email ${email} already exists`);
+      logger.warn(`❌ Registration failed: Email ${email} already exists`);
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
     
@@ -620,9 +683,9 @@ app.post('/api/auth/register', async (req, res) => {
     // Save user
     const savedUser = await newUser.save();
     
-    console.log(`✅ User created successfully: ${email}`);
-    console.log(`🆔 User ID: ${savedUser._id}`);
-    console.log(`🆔 User userId field: ${savedUser.userId}`);
+    logger.info(`✅ User created successfully: ${email}`);
+    logger.debug(`🆔 User ID: ${savedUser._id}`);
+    logger.debug(`🆔 User userId field: ${savedUser.userId}`);
     
     let foodTruckId = null;
     
@@ -671,7 +734,7 @@ app.post('/api/auth/register', async (req, res) => {
       
       await newTruck.save();
       foodTruckId = newTruck.id;
-      console.log(`🚚 Auto-created food truck for owner: ${businessName} (ID: ${foodTruckId})`);
+      logger.info(`🚚 Auto-created food truck for owner: ${businessName} (ID: ${foodTruckId})`);
     }
     
     // Set userId to match _id for consistency
@@ -700,6 +763,11 @@ app.post('/api/auth/register', async (req, res) => {
     savedUser.refreshToken = refreshToken;
     await savedUser.save();
     
+    // Send welcome email (don't await to avoid blocking the response)
+    emailService.sendWelcomeEmail(savedUser).catch(err => {
+      logger.error('Failed to send welcome email:', err);
+    });
+    
     // CONSISTENT RESPONSE: Always return _id as the main identifier
     res.json({
       success: true,
@@ -718,14 +786,14 @@ app.post('/api/auth/register', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Registration error:', error);
+    logger.error('❌ Registration error:', error);
     res.status(500).json({ success: false, message: 'Server error during registration' });
   }
 });
 
 // Get password requirements endpoint
 app.get('/api/auth/password-requirements', (req, res) => {
-  console.log('🔐 Password requirements requested');
+  logger.debug('🔐 Password requirements requested');
   res.json({
     success: true,
     requirements: getPasswordRequirements()
@@ -805,7 +873,7 @@ app.post('/api/auth/refresh', async (req, res) => {
       token: newToken
     });
   } catch (error) {
-    console.error('❌ Token refresh error:', error);
+    logger.error('❌ Token refresh error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -821,7 +889,7 @@ app.post('/api/auth/logout', verifyToken, async (req, res) => {
       message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('❌ Logout error:', error);
+    logger.error('❌ Logout error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -850,7 +918,7 @@ app.get('/api/trucks', async (req, res) => {
       isOpen: isCurrentlyOpen(truck.schedule)
     }));
     
-    console.log(`📋 Getting trucks page ${page}/${totalPages}: ${updatedTrucks.length} trucks`);
+    logger.info(`📋 Getting trucks page ${page}/${totalPages}: ${updatedTrucks.length} trucks`);
     
     // Return paginated response
     res.json({
@@ -866,7 +934,7 @@ app.get('/api/trucks', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching trucks:', error);
+    logger.error('❌ Error fetching trucks:', error);
     res.status(500).json({ message: 'Error fetching food trucks' });
   }
 });
@@ -875,7 +943,7 @@ app.get('/api/trucks/:id', async (req, res) => {
   try {
     const truck = await FoodTruck.findOne({ id: req.params.id });
     if (truck) {
-      console.log(`🚚 Found truck: ${truck.name}`);
+      logger.debug(`🚚 Found truck: ${truck.name}`);
       // Update open/closed status based on current time
       const updatedTruck = {
         ...truck.toObject(),
@@ -883,11 +951,11 @@ app.get('/api/trucks/:id', async (req, res) => {
       };
       res.json(updatedTruck);
     } else {
-      console.log(`❌ Truck ${req.params.id} not found`);
+      logger.warn(`❌ Truck ${req.params.id} not found`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error fetching truck:', error);
+    logger.error('❌ Error fetching truck:', error);
     res.status(500).json({ message: 'Error fetching food truck' });
   }
 });
@@ -902,7 +970,7 @@ app.get('/api/trucks/:id/menu', async (req, res) => {
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error fetching menu:', error);
+    logger.error('❌ Error fetching menu:', error);
     res.status(500).json({ message: 'Error fetching menu' });
   }
 });
@@ -914,8 +982,8 @@ app.put('/api/trucks/:id/location', async (req, res) => {
     const { id } = req.params;
     const { latitude, longitude, address } = req.body;
     
-    console.log(`📍 Location update request for truck ${id}`);
-    console.log(`📍 New location: ${latitude}, ${longitude} - ${address}`);
+    logger.debug(`📍 Location update request for truck ${id}`);
+    logger.debug(`📍 New location: ${latitude}, ${longitude} - ${address}`);
     
     const truck = await FoodTruck.findOneAndUpdate(
       { id },
@@ -931,18 +999,18 @@ app.put('/api/trucks/:id/location', async (req, res) => {
     );
     
     if (truck) {
-      console.log(`✅ Location updated for ${truck.name}`);
+      logger.info(`✅ Location updated for ${truck.name}`);
       res.json({ 
         success: true, 
         message: 'Location updated successfully',
         location: truck.location 
       });
     } else {
-      console.log(`❌ Truck not found: ${id}`);
+      logger.warn(`❌ Truck not found: ${id}`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error updating location:', error);
+    logger.error('❌ Error updating location:', error);
     res.status(500).json({ message: 'Error updating location' });
   }
 });
@@ -954,7 +1022,7 @@ app.put('/api/trucks/:id/cover-photo', async (req, res) => {
     const { id } = req.params;
     const { imageUrl, imageData } = req.body;
     
-    console.log(`🖼️ Cover photo update request for truck ${id}`);
+    logger.debug(`🖼️ Cover photo update request for truck ${id}`);
     
     const truck = await FoodTruck.findOneAndUpdate(
       { id },
@@ -966,18 +1034,18 @@ app.put('/api/trucks/:id/cover-photo', async (req, res) => {
     );
     
     if (truck) {
-      console.log(`✅ Cover photo updated for ${truck.name}`);
+      logger.info(`✅ Cover photo updated for ${truck.name}`);
       res.json({ 
         success: true, 
         message: 'Cover photo updated successfully',
         image: truck.image 
       });
     } else {
-      console.log(`❌ Truck not found: ${id}`);
+      logger.warn(`❌ Truck not found: ${id}`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error updating cover photo:', error);
+    logger.error('❌ Error updating cover photo:', error);
     res.status(500).json({ message: 'Error updating cover photo' });
   }
 });
@@ -988,7 +1056,7 @@ app.get('/api/trucks/:truckId/pos-settings', async (req, res) => {
   try {
     const { truckId } = req.params;
     
-    console.log(`🔧 POS settings request for truck: ${truckId}`);
+    logger.debug(`🔧 POS settings request for truck: ${truckId}`);
     
     // Find truck by ID
     let truck = await FoodTruck.findOne({ id: truckId });
@@ -999,7 +1067,7 @@ app.get('/api/trucks/:truckId/pos-settings', async (req, res) => {
     }
     
     if (!truck) {
-      console.log(`❌ Truck not found: ${truckId}`);
+      logger.warn(`❌ Truck not found: ${truckId}`);
       return res.status(404).json({ message: 'Food truck not found' });
     }
     
@@ -1011,13 +1079,13 @@ app.get('/api/trucks/:truckId/pos-settings', async (req, res) => {
       posWebhookUrl: null
     };
     
-    console.log(`✅ POS settings found for ${truck.name}`);
+    logger.info(`✅ POS settings found for ${truck.name}`);
     res.json({
       success: true,
       posSettings: posSettings
     });
   } catch (error) {
-    console.error('❌ Error fetching POS settings:', error);
+    logger.error('❌ Error fetching POS settings:', error);
     res.status(500).json({ message: 'Error fetching POS settings' });
   }
 });
@@ -1046,7 +1114,7 @@ app.get('/api/trucks/:id/schedule', async (req, res) => {
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error fetching schedule:', error);
+    logger.error('❌ Error fetching schedule:', error);
     res.status(500).json({ message: 'Error fetching schedule' });
   }
 });
@@ -1072,7 +1140,7 @@ app.put('/api/trucks/:id/schedule', async (req, res) => {
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error updating schedule:', error);
+    logger.error('❌ Error updating schedule:', error);
     res.status(500).json({ message: 'Error updating schedule' });
   }
 });
@@ -1115,7 +1183,7 @@ app.get('/api/trucks/:id/analytics', async (req, res) => {
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error fetching analytics:', error);
+    logger.error('❌ Error fetching analytics:', error);
     res.status(500).json({ message: 'Error fetching analytics' });
   }
 });
@@ -1142,7 +1210,7 @@ app.get('/api/pos/settings/:ownerId', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching POS settings:', error);
+    logger.error('❌ Error fetching POS settings:', error);
     res.status(500).json({ message: 'Error fetching POS settings' });
   }
 });
@@ -1179,10 +1247,10 @@ app.post('/api/pos/child-account', async (req, res) => {
     truck.posSettings.childAccounts.push(childAccount);
     await truck.save();
     
-    console.log(`✅ Created child POS account: ${childAccountName} for ${truck.name}`);
+    logger.info(`✅ Created child POS account: ${childAccountName} for ${truck.name}`);
     res.json({ success: true, childAccount });
   } catch (error) {
-    console.error('❌ Error creating child account:', error);
+    logger.error('❌ Error creating child account:', error);
     res.status(500).json({ message: 'Error creating child account' });
   }
 });
@@ -1223,10 +1291,10 @@ app.post('/api/pos/location-update', async (req, res) => {
     
     await FoodTruck.findOneAndUpdate({ id: truck.id }, updates);
     
-    console.log(`📍 POS location update for ${truck.name}: ${latitude}, ${longitude}`);
+    logger.info(`📍 POS location update for ${truck.name}: ${latitude}, ${longitude}`);
     res.json({ success: true, message: 'Location updated via POS' });
   } catch (error) {
-    console.error('❌ Error updating location via POS:', error);
+    logger.error('❌ Error updating location via POS:', error);
     res.status(500).json({ message: 'Error updating location via POS' });
   }
 });
@@ -1243,7 +1311,7 @@ app.get('/api/pos/child-accounts/:ownerId', async (req, res) => {
     
     res.json({ success: true, childAccounts: truck.posSettings.childAccounts });
   } catch (error) {
-    console.error('❌ Error fetching child accounts:', error);
+    logger.error('❌ Error fetching child accounts:', error);
     res.status(500).json({ message: 'Error fetching child accounts' });
   }
 });
@@ -1267,10 +1335,10 @@ app.put('/api/pos/child-account/:childId/deactivate', async (req, res) => {
     childAccount.isActive = false;
     await truck.save();
     
-    console.log(`🚫 Deactivated child POS account: ${childAccount.name}`);
+    logger.info(`🚫 Deactivated child POS account: ${childAccount.name}`);
     res.json({ success: true, message: 'Child account deactivated' });
   } catch (error) {
-    console.error('❌ Error deactivating child account:', error);
+    logger.error('❌ Error deactivating child account:', error);
     res.status(500).json({ message: 'Error deactivating child account' });
   }
 });
@@ -1280,16 +1348,16 @@ app.put('/api/pos/child-account/:childId/deactivate', async (req, res) => {
 app.get('/api/users/:userId/favorites', async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log(`❤️  Getting favorites for user: ${userId}`);
+    logger.debug(`❤️  Getting favorites for user: ${userId}`);
     
     const favorites = await Favorite.find({ userId });
     const favoriteIds = favorites.map(fav => fav.truckId);
     const favoriteTrucks = await FoodTruck.find({ id: { $in: favoriteIds } });
     
-    console.log(`❤️  Found ${favoriteTrucks.length} favorites for user ${userId}`);
+    logger.info(`❤️  Found ${favoriteTrucks.length} favorites for user ${userId}`);
     res.json(favoriteTrucks);
   } catch (error) {
-    console.error('❌ Error fetching favorites:', error);
+    logger.error('❌ Error fetching favorites:', error);
     res.status(500).json({ message: 'Error fetching favorites' });
   }
 });
@@ -1298,19 +1366,19 @@ app.get('/api/users/:userId/favorites', async (req, res) => {
 app.post('/api/users/:userId/favorites/:truckId', async (req, res) => {
   try {
     const { userId, truckId } = req.params;
-    console.log(`❤️  Adding truck ${truckId} to favorites for user ${userId}`);
+    logger.debug(`❤️  Adding truck ${truckId} to favorites for user ${userId}`);
     
     const favorite = new Favorite({ userId, truckId });
     await favorite.save();
     
-    console.log(`❤️  Favorite added successfully`);
+    logger.info(`❤️  Favorite added successfully`);
     res.json({ success: true, message: 'Food truck added to favorites' });
   } catch (error) {
     if (error.code === 11000) {
       // Duplicate key error - already favorited
       res.json({ success: true, message: 'Food truck already in favorites' });
     } else {
-      console.error('❌ Error adding favorite:', error);
+      logger.error('❌ Error adding favorite:', error);
       res.status(500).json({ message: 'Error adding to favorites' });
     }
   }
@@ -1320,14 +1388,14 @@ app.post('/api/users/:userId/favorites/:truckId', async (req, res) => {
 app.delete('/api/users/:userId/favorites/:truckId', async (req, res) => {
   try {
     const { userId, truckId } = req.params;
-    console.log(`💔 Removing truck ${truckId} from favorites for user ${userId}`);
+    logger.debug(`💔 Removing truck ${truckId} from favorites for user ${userId}`);
     
     await Favorite.deleteOne({ userId, truckId });
     
-    console.log(`💔 Favorite removed successfully`);
+    logger.info(`💔 Favorite removed successfully`);
     res.json({ success: true, message: 'Food truck removed from favorites' });
   } catch (error) {
-    console.error('❌ Error removing favorite:', error);
+    logger.error('❌ Error removing favorite:', error);
     res.status(500).json({ message: 'Error removing from favorites' });
   }
 });
@@ -1338,10 +1406,10 @@ app.get('/api/users/:userId/favorites/check/:truckId', async (req, res) => {
     const { userId, truckId } = req.params;
     const favorite = await Favorite.findOne({ userId, truckId });
     const isFavorite = !!favorite;
-    console.log(`❤️  Checking if truck ${truckId} is favorite for user ${userId}: ${isFavorite}`);
+    logger.debug(`❤️  Checking if truck ${truckId} is favorite for user ${userId}: ${isFavorite}`);
     res.json({ isFavorite });
   } catch (error) {
-    console.error('❌ Error checking favorite:', error);
+    logger.error('❌ Error checking favorite:', error);
     res.status(500).json({ message: 'Error checking favorite status' });
   }
 });
@@ -1351,12 +1419,12 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
     
-    console.log(`🔐 Password reset request for: ${email}`);
+    logger.info(`🔐 Password reset request for: ${email}`);
     
     // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
-      console.log(`❌ Password reset failed: User ${email} not found`);
+      logger.warn(`❌ Password reset failed: User ${email} not found`);
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     
@@ -1368,8 +1436,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     // 2. Send email with reset link
     // For now, we'll just return success message
     
-    console.log(`✅ Password reset token generated for: ${email}`);
-    console.log(`🔗 Reset token: ${resetToken}`);
+    logger.info(`✅ Password reset token generated for: ${email}`);
+    logger.debug(`🔗 Reset token: ${resetToken}`);
     
     res.json({
       success: true,
@@ -1379,7 +1447,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Forgot password error:', error);
+    logger.error('❌ Forgot password error:', error);
     res.status(500).json({ success: false, message: 'Server error during password reset request' });
   }
 });
@@ -1388,7 +1456,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
   try {
     const { resetToken, newPassword } = req.body;
     
-    console.log(`🔐 Password reset attempt with token: ${resetToken}`);
+    logger.debug(`🔐 Password reset attempt with token: ${resetToken}`);
     
     if (!resetToken || !newPassword) {
       return res.status(400).json({ success: false, message: 'Reset token and new password are required' });
@@ -1404,14 +1472,14 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const user = await User.findOne({ _id: userId });
     
     if (!user) {
-      console.log(`❌ Password reset failed: User not found for token`);
+      logger.warn(`❌ Password reset failed: User not found for token`);
       return res.status(404).json({ success: false, message: 'Invalid reset token' });
     }
     
     // Update password (in production, hash the password)
     await User.findByIdAndUpdate(userId, { password: newPassword });
     
-    console.log(`✅ Password reset successful for user: ${user.email}`);
+    logger.info(`✅ Password reset successful for user: ${user.email}`);
     
     res.json({
       success: true,
@@ -1419,7 +1487,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Reset password error:', error);
+    logger.error('❌ Reset password error:', error);
     res.status(500).json({ success: false, message: 'Server error during password reset' });
   }
 });
@@ -1428,16 +1496,16 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 // Mobile app compatible route: PUT /api/users/:userId/email
 app.put('/api/users/:userId/email', async (req, res) => {
-  console.log('\n📧 Mobile email change request received');
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
-  console.log('User ID from params:', req.params.userId);
+  logger.debug('\n📧 Mobile email change request received');
+  logger.debug('Request body:', JSON.stringify(req.body, null, 2));
+  logger.debug('User ID from params:', req.params.userId);
   
   try {
     const { userId } = req.params;
     const { newEmail, password } = req.body;
     
     if (!userId || !newEmail || !password) {
-      console.log('❌ Missing required fields');
+      logger.warn('❌ Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: userId, newEmail, password'
@@ -1447,37 +1515,37 @@ app.put('/api/users/:userId/email', async (req, res) => {
     // Use flexible user finder
     const user = await findUserFlexibly(userId);
     if (!user) {
-      console.log(`❌ User not found for identifier: ${userId}`);
+      logger.warn(`❌ User not found for identifier: ${userId}`);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
     
-    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
+    logger.debug(`✅ User found: ${user.userId || user._id} (${user.email})`);
     
     // Verify password
     if (user.password !== password) {
-      console.log('❌ Password is incorrect');
+      logger.warn('❌ Password is incorrect');
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
     
-    console.log('✅ Password verified');
+    logger.debug('✅ Password verified');
     
     // Check if new email is already in use
     const existingUser = await User.findOne({ email: newEmail });
     if (existingUser && existingUser._id.toString() !== user._id.toString()) {
-      console.log(`❌ Email change failed: Email ${newEmail} already in use`);
+      logger.warn(`❌ Email change failed: Email ${newEmail} already in use`);
       return res.status(400).json({ success: false, message: 'Email already in use' });
     }
     
     // Update email directly (for mobile app compatibility)
-    console.log(`🔄 Attempting to update email for user: ${user._id}`);
-    console.log(`🔄 User _id type: ${typeof user._id}`);
-    console.log(`🔄 User _id value: ${user._id}`);
+    logger.debug(`🔄 Attempting to update email for user: ${user._id}`);
+    logger.debug(`🔄 User _id type: ${typeof user._id}`);
+    logger.debug(`🔄 User _id value: ${user._id}`);
     
     const updateResult = await User.findOneAndUpdate(
       { _id: user._id },
@@ -1485,11 +1553,16 @@ app.put('/api/users/:userId/email', async (req, res) => {
       { new: true }
     );
     
-    console.log(`📧 Update result: ${updateResult ? 'SUCCESS' : 'FAILED'}`);
-    console.log(`📧 New email in database: ${updateResult ? updateResult.email : 'N/A'}`);
+    logger.debug(`📧 Update result: ${updateResult ? 'SUCCESS' : 'FAILED'}`);
+    logger.debug(`📧 New email in database: ${updateResult ? updateResult.email : 'N/A'}`);
     
     if (updateResult) {
-      console.log(`✅ Email change successful: ${user.email} -> ${newEmail}`);
+      logger.info(`✅ Email change successful: ${user.email} -> ${newEmail}`);
+      
+      // Send email change notification
+      emailService.sendEmailChangeNotification(user.email, newEmail, user.name).catch(err => {
+        logger.error('Failed to send email change notification:', err);
+      });
       
       res.json({
         success: true,
@@ -1505,12 +1578,12 @@ app.put('/api/users/:userId/email', async (req, res) => {
         }
       });
     } else {
-      console.log(`❌ Email update failed for user: ${user.email}`);
-      console.log('🔍 Trying alternative email update method...');
+      logger.error(`❌ Email update failed for user: ${user.email}`);
+      logger.debug('🔍 Trying alternative email update method...');
       
       // Try alternative update method using the original search criteria
       const alternativeQuery = user.userId ? { userId: user.userId } : { _id: user._id };
-      console.log(`🔄 Alternative query: ${JSON.stringify(alternativeQuery)}`);
+      logger.debug(`🔄 Alternative query: ${JSON.stringify(alternativeQuery)}`);
       
       const alternativeUpdate = await User.findOneAndUpdate(
         alternativeQuery,
@@ -1519,8 +1592,8 @@ app.put('/api/users/:userId/email', async (req, res) => {
       );
       
       if (alternativeUpdate) {
-        console.log('✅ Alternative email update method succeeded');
-        console.log(`✅ Email updated successfully in database using alternative method`);
+        logger.info('✅ Alternative email update method succeeded');
+        logger.info(`✅ Email updated successfully in database using alternative method`);
         
         res.json({
           success: true,
@@ -1536,27 +1609,27 @@ app.put('/api/users/:userId/email', async (req, res) => {
           }
         });
       } else {
-        console.log('❌ Alternative email update method also failed');
+        logger.error('❌ Alternative email update method also failed');
         res.status(500).json({ success: false, message: 'Failed to update email in database' });
       }
     }
     
   } catch (error) {
-    console.error('❌ Change email error:', error);
+    logger.error('❌ Change email error:', error);
     res.status(500).json({ success: false, message: 'Server error during email change request' });
   }
 });
 
 // Legacy route for web portal compatibility
 app.post('/api/users/change-email', async (req, res) => {
-  console.log('\n📧 Email change request received');
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  logger.debug('\n📧 Email change request received');
+  logger.debug('Request body:', JSON.stringify(req.body, null, 2));
   
   try {
     const { userId, newEmail, password } = req.body;
     
     if (!userId || !newEmail || !password) {
-      console.log('❌ Missing required fields');
+      logger.warn('❌ Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: userId, newEmail, password'
@@ -1566,30 +1639,30 @@ app.post('/api/users/change-email', async (req, res) => {
     // Use flexible user finder
     const user = await findUserFlexibly(userId);
     if (!user) {
-      console.log(`❌ User not found for identifier: ${userId}`);
+      logger.warn(`❌ User not found for identifier: ${userId}`);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
     
-    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
+    logger.debug(`✅ User found: ${user.userId || user._id} (${user.email})`);
     
     // Verify password
     if (user.password !== password) {
-      console.log('❌ Password is incorrect');
+      logger.warn('❌ Password is incorrect');
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
     
-    console.log('✅ Password verified');
+    logger.debug('✅ Password verified');
     
     // Check if new email is already in use
     const existingUser = await User.findOne({ email: newEmail });
     if (existingUser && existingUser._id !== userId) {
-      console.log(`❌ Email change failed: Email ${newEmail} already in use`);
+      logger.warn(`❌ Email change failed: Email ${newEmail} already in use`);
       return res.status(400).json({ success: false, message: 'Email already in use' });
     }
     
@@ -1601,8 +1674,8 @@ app.post('/api/users/change-email', async (req, res) => {
     // 2. Send verification email to new email address
     // For now, we'll just return success message
     
-    console.log(`✅ Email change verification token generated for: ${user.email} -> ${newEmail}`);
-    console.log(`🔗 Verification token: ${verificationToken}`);
+    logger.info(`✅ Email change verification token generated for: ${user.email} -> ${newEmail}`);
+    logger.debug(`🔗 Verification token: ${verificationToken}`);
     
     res.json({
       success: true,
@@ -1612,7 +1685,7 @@ app.post('/api/users/change-email', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Change email error:', error);
+    logger.error('❌ Change email error:', error);
     res.status(500).json({ success: false, message: 'Server error during email change request' });
   }
 });
@@ -1621,8 +1694,8 @@ app.post('/api/users/verify-email-change', async (req, res) => {
   try {
     const { verificationToken, newEmail } = req.body;
     
-    console.log(`📧 Email change verification with token: ${verificationToken}`);
-    console.log(`📧 New email: ${newEmail}`);
+    logger.debug(`📧 Email change verification with token: ${verificationToken}`);
+    logger.debug(`📧 New email: ${newEmail}`);
     
     if (!verificationToken || !newEmail) {
       return res.status(400).json({ success: false, message: 'Verification token and new email are required' });
@@ -1635,19 +1708,19 @@ app.post('/api/users/verify-email-change', async (req, res) => {
     }
     
     const userId = tokenParts[2];
-    console.log(`📧 Extracted user ID from token: ${userId}`);
+    logger.debug(`📧 Extracted user ID from token: ${userId}`);
     
     // Use flexible user finder
     const user = await findUserFlexibly(userId);
-    console.log(`📧 User found: ${user ? user.email : 'NOT FOUND'}`);
+    logger.debug(`📧 User found: ${user ? user.email : 'NOT FOUND'}`);
     
     if (!user) {
-      console.log(`❌ Email change verification failed: User not found`);
+      logger.warn(`❌ Email change verification failed: User not found`);
       return res.status(404).json({ success: false, message: 'Invalid verification token' });
     }
     
-    console.log(`📧 Current email: ${user.email}`);
-    console.log(`📧 New email: ${newEmail}`);
+    logger.debug(`📧 Current email: ${user.email}`);
+    logger.debug(`📧 New email: ${newEmail}`);
     
     // Update email using findOneAndUpdate for better control
     const updateResult = await User.findOneAndUpdate(
@@ -1656,11 +1729,16 @@ app.post('/api/users/verify-email-change', async (req, res) => {
       { new: true }
     );
     
-    console.log(`📧 Update result: ${updateResult ? 'SUCCESS' : 'FAILED'}`);
-    console.log(`📧 New email in database: ${updateResult ? updateResult.email : 'N/A'}`);
+    logger.debug(`📧 Update result: ${updateResult ? 'SUCCESS' : 'FAILED'}`);
+    logger.debug(`📧 New email in database: ${updateResult ? updateResult.email : 'N/A'}`);
     
     if (updateResult) {
-      console.log(`✅ Email change successful: ${user.email} -> ${newEmail}`);
+      logger.info(`✅ Email change successful: ${user.email} -> ${newEmail}`);
+      
+      // Send email change notification
+      emailService.sendEmailChangeNotification(user.email, newEmail, user.name).catch(err => {
+        logger.error('Failed to send email change notification:', err);
+      });
       
       res.json({
         success: true,
@@ -1680,45 +1758,45 @@ app.post('/api/users/verify-email-change', async (req, res) => {
         }
       });
     } else {
-      console.log(`❌ Email update failed for user: ${user.email}`);
+      logger.error(`❌ Email update failed for user: ${user.email}`);
       res.status(500).json({ success: false, message: 'Failed to update email in database' });
     }
     
   } catch (error) {
-    console.error('❌ Verify email change error:', error);
+    logger.error('❌ Verify email change error:', error);
     res.status(500).json({ success: false, message: 'Server error during email verification' });
   }
 });
 
 // Enhanced user finder function that handles ID mismatches
 async function findUserFlexibly(identifier) {
-  console.log(`🔍 Searching for user with identifier: ${identifier}`);
+  logger.debug(`🔍 Searching for user with identifier: ${identifier}`);
   
   // Try exact userId match first
   let user = await User.findOne({ userId: identifier });
   if (user) {
-    console.log(`✅ Found user by exact userId match: ${user.userId}`);
+    logger.debug(`✅ Found user by exact userId match: ${user.userId}`);
     return user;
   }
   
   // Try _id field match (for default users)
   user = await User.findOne({ _id: identifier });
   if (user) {
-    console.log(`✅ Found user by _id match: ${user._id}`);
+    logger.debug(`✅ Found user by _id match: ${user._id}`);
     return user;
   }
   
   // Try email match
   user = await User.findOne({ email: identifier });
   if (user) {
-    console.log(`✅ Found user by email match: ${user.email}`);
+    logger.debug(`✅ Found user by email match: ${user.email}`);
     return user;
   }
   
   // Try partial userId match (for timestamp-based IDs)
   user = await User.findOne({ userId: { $regex: identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } });
   if (user) {
-    console.log(`✅ Found user by partial userId match: ${user.userId}`);
+    logger.debug(`✅ Found user by partial userId match: ${user.userId}`);
     return user;
   }
   
@@ -1727,30 +1805,30 @@ async function findUserFlexibly(identifier) {
     try {
       user = await User.findById(identifier);
       if (user) {
-        console.log(`✅ Found user by ObjectId match: ${user._id}`);
+        logger.debug(`✅ Found user by ObjectId match: ${user._id}`);
         return user;
       }
     } catch (err) {
-      console.log(`❌ Invalid ObjectId: ${identifier}`);
+      logger.debug(`❌ Invalid ObjectId: ${identifier}`);
     }
   }
   
-  console.log(`❌ No user found for identifier: ${identifier}`);
+  logger.debug(`❌ No user found for identifier: ${identifier}`);
   return null;
 }
 
 // Mobile app compatible password change route: PUT /api/users/:userId/password
 app.put('/api/users/:userId/password', async (req, res) => {
-  console.log('\n🔐 Mobile password change request received');
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
-  console.log('User ID from params:', req.params.userId);
+  logger.debug('\n🔐 Mobile password change request received');
+  logger.debug('Request body:', JSON.stringify(req.body, null, 2));
+  logger.debug('User ID from params:', req.params.userId);
   
   try {
     const { userId } = req.params;
     const { currentPassword, newPassword } = req.body;
     
     if (!userId || !currentPassword || !newPassword) {
-      console.log('❌ Missing required fields');
+      logger.warn('❌ Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: userId (in URL), currentPassword, newPassword'
@@ -1761,30 +1839,30 @@ app.put('/api/users/:userId/password', async (req, res) => {
     const user = await findUserFlexibly(userId);
     
     if (!user) {
-      console.log(`❌ User not found for identifier: ${userId}`);
+      logger.warn(`❌ User not found for identifier: ${userId}`);
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
     
-    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
+    logger.debug(`✅ User found: ${user.userId || user._id} (${user.email})`);
     
     // Verify current password
     if (user.password !== currentPassword) {
-      console.log('❌ Current password is incorrect');
+      logger.warn('❌ Current password is incorrect');
       return res.status(401).json({
         success: false,
         message: 'Current password is incorrect'
       });
     }
     
-    console.log('✅ Current password verified');
+    logger.debug('✅ Current password verified');
     
     // Validate new password requirements
     const passwordValidation = validatePassword(newPassword);
     if (!passwordValidation.isValid) {
-      console.log(`❌ Password change failed: New password does not meet requirements`);
+      logger.warn(`❌ Password change failed: New password does not meet requirements`);
       return res.status(400).json({ 
         success: false, 
         message: 'New password does not meet requirements',
@@ -1800,9 +1878,9 @@ app.put('/api/users/:userId/password', async (req, res) => {
     }
     
     // Update password directly (for mobile app compatibility)
-    console.log(`🔄 Attempting to update password for user: ${user._id}`);
-    console.log(`🔄 User _id type: ${typeof user._id}`);
-    console.log(`🔄 User _id value: ${user._id}`);
+    logger.debug(`🔄 Attempting to update password for user: ${user._id}`);
+    logger.debug(`🔄 User _id type: ${typeof user._id}`);
+    logger.debug(`🔄 User _id value: ${user._id}`);
     
     const updatedUser = await User.findOneAndUpdate(
       { _id: user._id },
@@ -1810,19 +1888,19 @@ app.put('/api/users/:userId/password', async (req, res) => {
       { new: true }
     );
     
-    console.log(`🔄 Update result: ${updatedUser ? 'SUCCESS' : 'FAILED'}`);
+    logger.debug(`🔄 Update result: ${updatedUser ? 'SUCCESS' : 'FAILED'}`);
     if (updatedUser) {
-      console.log(`🔄 Updated user _id: ${updatedUser._id}`);
-      console.log(`🔄 Updated user password: ${updatedUser.password ? 'SET' : 'NOT SET'}`);
+      logger.debug(`🔄 Updated user _id: ${updatedUser._id}`);
+      logger.debug(`🔄 Updated user password: ${updatedUser.password ? 'SET' : 'NOT SET'}`);
     }
     
     if (!updatedUser) {
-      console.log('❌ Failed to update password in database');
-      console.log('🔍 Trying alternative update method...');
+      logger.error('❌ Failed to update password in database');
+      logger.debug('🔍 Trying alternative update method...');
       
       // Try alternative update method using the original search criteria
       const alternativeQuery = user.userId ? { userId: user.userId } : { _id: user._id };
-      console.log(`🔄 Alternative query: ${JSON.stringify(alternativeQuery)}`);
+      logger.debug(`🔄 Alternative query: ${JSON.stringify(alternativeQuery)}`);
       
       const alternativeUpdate = await User.findOneAndUpdate(
         alternativeQuery,
@@ -1831,8 +1909,8 @@ app.put('/api/users/:userId/password', async (req, res) => {
       );
       
       if (alternativeUpdate) {
-        console.log('✅ Alternative update method succeeded');
-        console.log(`✅ Password updated successfully in database using alternative method`);
+        logger.info('✅ Alternative update method succeeded');
+        logger.info(`✅ Password updated successfully in database using alternative method`);
         
         res.json({
           success: true,
@@ -1849,7 +1927,7 @@ app.put('/api/users/:userId/password', async (req, res) => {
         });
         return;
       } else {
-        console.log('❌ Alternative update method also failed');
+        logger.error('❌ Alternative update method also failed');
         return res.status(500).json({
           success: false,
           message: 'Failed to update password'
@@ -1857,7 +1935,7 @@ app.put('/api/users/:userId/password', async (req, res) => {
       }
     }
     
-    console.log('✅ Password updated successfully in database');
+    logger.info('✅ Password updated successfully in database');
     
     res.json({
       success: true,
@@ -1874,7 +1952,7 @@ app.put('/api/users/:userId/password', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Password change error:', error);
+    logger.error('❌ Password change error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -1885,14 +1963,14 @@ app.put('/api/users/:userId/password', async (req, res) => {
 
 // Legacy password change endpoint - ENHANCED with flexible user lookup
 app.post('/api/users/change-password', async (req, res) => {
-  console.log('\n🔐 Password change request received');
-  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  logger.debug('\n🔐 Password change request received');
+  logger.debug('Request body:', JSON.stringify(req.body, null, 2));
   
   try {
     const { userId, currentPassword, newPassword } = req.body;
     
     if (!userId || !currentPassword || !newPassword) {
-      console.log('❌ Missing required fields');
+      logger.warn('❌ Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: userId, currentPassword, newPassword'
@@ -1903,13 +1981,13 @@ app.post('/api/users/change-password', async (req, res) => {
     const user = await findUserFlexibly(userId);
     
     if (!user) {
-      console.log(`❌ User not found for identifier: ${userId}`);
+      logger.warn(`❌ User not found for identifier: ${userId}`);
       
       // Debug: Show all users to help identify the issue
       const allUsers = await User.find({}, 'userId _id email role').limit(10);
-      console.log('📋 Available users in database:');
+      logger.debug('📋 Available users in database:');
       allUsers.forEach(u => {
-        console.log(`   userId: ${u.userId || 'undefined'} | _id: ${u._id} | email: ${u.email} | role: ${u.role}`);
+        logger.debug(`   userId: ${u.userId || 'undefined'} | _id: ${u._id} | email: ${u.email} | role: ${u.role}`);
       });
       
       return res.status(404).json({
@@ -1926,23 +2004,23 @@ app.post('/api/users/change-password', async (req, res) => {
       });
     }
     
-    console.log(`✅ User found: ${user.userId || user._id} (${user.email})`);
+    logger.debug(`✅ User found: ${user.userId || user._id} (${user.email})`);
     
     // Verify current password
     if (user.password !== currentPassword) {
-      console.log('❌ Current password is incorrect');
+      logger.warn('❌ Current password is incorrect');
       return res.status(401).json({
         success: false,
         message: 'Current password is incorrect'
       });
     }
     
-    console.log('✅ Current password verified');
+    logger.debug('✅ Current password verified');
     
     // Validate new password requirements
     const passwordValidation = validatePassword(newPassword);
     if (!passwordValidation.isValid) {
-      console.log(`❌ Password change failed: New password does not meet requirements`);
+      logger.warn(`❌ Password change failed: New password does not meet requirements`);
       return res.status(400).json({ 
         success: false, 
         message: 'New password does not meet requirements',
@@ -1966,14 +2044,14 @@ app.post('/api/users/change-password', async (req, res) => {
     );
     
     if (!updatedUser) {
-      console.log('❌ Failed to update password in database');
+      logger.error('❌ Failed to update password in database');
       return res.status(500).json({
         success: false,
         message: 'Failed to update password'
       });
     }
     
-    console.log('✅ Password updated successfully in database');
+    logger.info('✅ Password updated successfully in database');
     
     res.json({
       success: true,
@@ -1986,7 +2064,7 @@ app.post('/api/users/change-password', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Password change error:', error);
+    logger.error('❌ Password change error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -2006,10 +2084,10 @@ app.get('/api/trucks/search', async (req, res) => {
         { cuisine: { $regex: query, $options: 'i' } }
       ]
     });
-    console.log(`🔍 Search for "${query}" found ${trucks.length} trucks`);
+    logger.info(`🔍 Search for "${query}" found ${trucks.length} trucks`);
     res.json(trucks);
   } catch (error) {
-    console.error('❌ Error searching trucks:', error);
+    logger.error('❌ Error searching trucks:', error);
     res.status(500).json({ message: 'Error searching food trucks' });
   }
 });
@@ -2128,11 +2206,11 @@ app.get('/api/trucks/filter', async (req, res) => {
     // Apply limit
     trucks = trucks.slice(0, parseInt(limit));
 
-    console.log(`🔍 Enhanced filter found ${trucks.length} trucks`);
+    logger.info(`🔍 Enhanced filter found ${trucks.length} trucks`);
     res.json(trucks);
     
   } catch (error) {
-    console.error('❌ Error filtering trucks:', error);
+    logger.error('❌ Error filtering trucks:', error);
     res.status(500).json({ message: 'Error filtering food trucks' });
   }
 });
@@ -2163,11 +2241,11 @@ app.get('/api/trucks/filters', async (req, res) => {
       stats: stats[0] || { totalTrucks: 0, averageRating: 0, openTrucks: 0 }
     };
 
-    console.log(`📊 Filter options: ${filterOptions.cuisines.length} cuisines available`);
+    logger.info(`📊 Filter options: ${filterOptions.cuisines.length} cuisines available`);
     res.json(filterOptions);
     
   } catch (error) {
-    console.error('❌ Error getting filter options:', error);
+    logger.error('❌ Error getting filter options:', error);
     res.status(500).json({ message: 'Error getting filter options' });
   }
 });
@@ -2178,16 +2256,16 @@ app.get('/api/trucks/nearby', async (req, res) => {
     const { lat, lng, radius = 5 } = req.query;
     // For simplicity, return all trucks (in real app, calculate distance)
     const trucks = await FoodTruck.find();
-    console.log(`📍 Nearby search: lat=${lat}, lng=${lng}, radius=${radius}km`);
+    logger.info(`📍 Nearby search: lat=${lat}, lng=${lng}, radius=${radius}km`);
     res.json(trucks);
   } catch (error) {
-    console.error('❌ Error fetching nearby trucks:', error);
+    logger.error('❌ Error fetching nearby trucks:', error);
     res.status(500).json({ message: 'Error fetching nearby trucks' });
   }
 });
 
 // Add new food truck (for owners)
-app.post('/api/trucks', async (req, res) => {
+app.post('/api/trucks', verifyToken, sanitizeInput, validateCreateTruck, asyncHandler(async (req, res) => {
   try {
     const newTruck = new FoodTruck({
       id: `truck_${Date.now()}`,
@@ -2199,13 +2277,13 @@ app.post('/api/trucks', async (req, res) => {
     });
     
     await newTruck.save();
-    console.log(`🚚 New truck created: ${newTruck.name}`);
+    logger.info(`🚚 New truck created: ${newTruck.name}`);
     res.json({ success: true, truck: newTruck });
   } catch (error) {
-    console.error('❌ Error creating truck:', error);
+    logger.error('❌ Error creating truck:', error);
     res.status(500).json({ message: 'Error creating food truck' });
   }
-});
+}));
 
 // Update food truck (for owners)
 app.put('/api/trucks/:id', async (req, res) => {
@@ -2222,14 +2300,14 @@ app.put('/api/trucks/:id', async (req, res) => {
     );
     
     if (truck) {
-      console.log(`✅ Updated food truck: ${truck.name} (ID: ${req.params.id})`);
+      logger.info(`✅ Updated food truck: ${truck.name} (ID: ${req.params.id})`);
       res.json({ success: true, truck });
     } else {
-      console.log(`❌ Truck ${req.params.id} not found for update`);
+      logger.warn(`❌ Truck ${req.params.id} not found for update`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error updating truck:', error);
+    logger.error('❌ Error updating truck:', error);
     res.status(500).json({ message: 'Error updating food truck' });
   }
 });
@@ -2246,7 +2324,7 @@ app.get('/api/trucks/:id/cover-photo', async (req, res) => {
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error fetching cover photo:', error);
+    logger.error('❌ Error fetching cover photo:', error);
     res.status(500).json({ message: 'Error fetching cover photo' });
   }
 });
@@ -2258,8 +2336,8 @@ app.put('/api/trucks/:id/menu', async (req, res) => {
     const { id } = req.params;
     const { menu } = req.body;
     
-    console.log(`🍽️ Menu update request for truck ${id}`);
-    console.log(`🍽️ Menu items: ${menu?.length || 0}`);
+    logger.debug(`🍽️ Menu update request for truck ${id}`);
+    logger.debug(`🍽️ Menu items: ${menu?.length || 0}`);
     
     const truck = await FoodTruck.findOneAndUpdate(
       { id },
@@ -2271,14 +2349,14 @@ app.put('/api/trucks/:id/menu', async (req, res) => {
     );
     
     if (truck) {
-      console.log(`✅ Menu updated for ${truck.name} - ${truck.menu.length} items`);
+      logger.info(`✅ Menu updated for ${truck.name} - ${truck.menu.length} items`);
       res.json({ success: true, message: 'Menu updated', menu: truck.menu });
     } else {
-      console.log(`❌ Truck not found: ${id}`);
+      logger.warn(`❌ Truck not found: ${id}`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
-    console.error('❌ Error updating menu:', error);
+    logger.error('❌ Error updating menu:', error);
     res.status(500).json({ message: 'Error updating menu' });
   }
 });
@@ -2351,7 +2429,7 @@ app.get('/api/trucks/:id/reviews', async (req, res) => {
     const totalReviews = await Review.countDocuments({ truckId: id });
     const stats = await Review.getStatsForTruck(id);
     
-    console.log(`📋 Retrieved ${reviews.length} reviews for truck ${id}`);
+    logger.info(`📋 Retrieved ${reviews.length} reviews for truck ${id}`);
     
     res.json({
       success: true,
@@ -2364,13 +2442,13 @@ app.get('/api/trucks/:id/reviews', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching reviews:', error);
+    logger.error('❌ Error fetching reviews:', error);
     res.status(500).json({ message: 'Error fetching reviews' });
   }
 });
 
 // Add a new review
-app.post('/api/trucks/:id/reviews', verifyToken, async (req, res) => {
+app.post('/api/trucks/:id/reviews', verifyToken, sanitizeInput, validateCreateReview, asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
     const { rating, comment, photos = [] } = req.body;
@@ -2417,7 +2495,18 @@ app.post('/api/trucks/:id/reviews', verifyToken, async (req, res) => {
       }
     );
     
-    console.log(`⭐ New review added for truck ${id} by user ${userId}`);
+    logger.info(`⭐ New review added for truck ${id} by user ${userId}`);
+    
+    // Send notification email to truck owner
+    const truck = await FoodTruck.findOne({ id });
+    if (truck && truck.ownerId) {
+      const owner = await User.findById(truck.ownerId);
+      if (owner && owner.email) {
+        emailService.sendNewReviewNotification(owner, truck, newReview).catch(err => {
+          logger.error('Failed to send review notification email:', err);
+        });
+      }
+    }
     
     res.json({
       success: true,
@@ -2425,10 +2514,10 @@ app.post('/api/trucks/:id/reviews', verifyToken, async (req, res) => {
       review: newReview
     });
   } catch (error) {
-    console.error('❌ Error adding review:', error);
+    logger.error('❌ Error adding review:', error);
     res.status(500).json({ message: 'Error adding review' });
   }
-});
+}));
 
 // Update a review
 app.put('/api/reviews/:reviewId', verifyToken, async (req, res) => {
@@ -2471,7 +2560,7 @@ app.put('/api/reviews/:reviewId', verifyToken, async (req, res) => {
       }
     );
     
-    console.log(`✏️ Review ${reviewId} updated`);
+    logger.info(`✏️ Review ${reviewId} updated`);
     
     res.json({
       success: true,
@@ -2479,7 +2568,7 @@ app.put('/api/reviews/:reviewId', verifyToken, async (req, res) => {
       review
     });
   } catch (error) {
-    console.error('❌ Error updating review:', error);
+    logger.error('❌ Error updating review:', error);
     res.status(500).json({ message: 'Error updating review' });
   }
 });
@@ -2521,14 +2610,14 @@ app.delete('/api/reviews/:reviewId', verifyToken, async (req, res) => {
       }
     );
     
-    console.log(`🗑️ Review ${reviewId} deleted`);
+    logger.info(`🗑️ Review ${reviewId} deleted`);
     
     res.json({
       success: true,
       message: 'Review deleted successfully'
     });
   } catch (error) {
-    console.error('❌ Error deleting review:', error);
+    logger.error('❌ Error deleting review:', error);
     res.status(500).json({ message: 'Error deleting review' });
   }
 });
@@ -2561,7 +2650,7 @@ app.post('/api/reviews/:reviewId/helpful', verifyToken, async (req, res) => {
     review.helpfulCount += 1;
     await review.save();
     
-    console.log(`👍 Review ${reviewId} marked as helpful by user ${userId}`);
+    logger.info(`👍 Review ${reviewId} marked as helpful by user ${userId}`);
     
     res.json({
       success: true,
@@ -2569,7 +2658,7 @@ app.post('/api/reviews/:reviewId/helpful', verifyToken, async (req, res) => {
       helpfulCount: review.helpfulCount
     });
   } catch (error) {
-    console.error('❌ Error marking review as helpful:', error);
+    logger.error('❌ Error marking review as helpful:', error);
     res.status(500).json({ message: 'Error marking review as helpful' });
   }
 });
@@ -2588,7 +2677,7 @@ app.get('/api/users/:userId/reviews', async (req, res) => {
     
     const totalReviews = await Review.countDocuments({ userId });
     
-    console.log(`📋 Retrieved ${reviews.length} reviews for user ${userId}`);
+    logger.info(`📋 Retrieved ${reviews.length} reviews for user ${userId}`);
     
     res.json({
       success: true,
@@ -2600,7 +2689,7 @@ app.get('/api/users/:userId/reviews', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching user reviews:', error);
+    logger.error('❌ Error fetching user reviews:', error);
     res.status(500).json({ message: 'Error fetching user reviews' });
   }
 });
@@ -2645,7 +2734,7 @@ app.post('/api/reviews/:reviewId/response', verifyToken, async (req, res) => {
     
     await review.save();
     
-    console.log(`💬 Owner responded to review ${reviewId}`);
+    logger.info(`💬 Owner responded to review ${reviewId}`);
     
     res.json({
       success: true,
@@ -2653,7 +2742,7 @@ app.post('/api/reviews/:reviewId/response', verifyToken, async (req, res) => {
       review
     });
   } catch (error) {
-    console.error('❌ Error adding response:', error);
+    logger.error('❌ Error adding response:', error);
     res.status(500).json({ message: 'Error adding response' });
   }
 });
@@ -2689,10 +2778,10 @@ app.post('/api/social/accounts/connect', verifyToken, async (req, res) => {
       { new: true, upsert: true }
     );
     
-    console.log(`✅ Connected ${platform} account for truck ${truckId}`);
+    logger.info(`✅ Connected ${platform} account for truck ${truckId}`);
     res.json({ success: true, account: socialAccount });
   } catch (error) {
-    console.error('❌ Error connecting social account:', error);
+    logger.error('❌ Error connecting social account:', error);
     res.status(500).json({ message: 'Error connecting social account' });
   }
 });
@@ -2712,7 +2801,7 @@ app.get('/api/social/accounts/:truckId', verifyToken, async (req, res) => {
     
     res.json({ success: true, accounts });
   } catch (error) {
-    console.error('❌ Error fetching social accounts:', error);
+    logger.error('❌ Error fetching social accounts:', error);
     res.status(500).json({ message: 'Error fetching social accounts' });
   }
 });
@@ -2730,10 +2819,10 @@ app.delete('/api/social/accounts/:accountId', verifyToken, async (req, res) => {
     account.isActive = false;
     await account.save();
     
-    console.log(`🔌 Disconnected ${account.platform} account`);
+    logger.info(`🔌 Disconnected ${account.platform} account`);
     res.json({ success: true, message: 'Account disconnected' });
   } catch (error) {
-    console.error('❌ Error disconnecting account:', error);
+    logger.error('❌ Error disconnecting account:', error);
     res.status(500).json({ message: 'Error disconnecting account' });
   }
 });
@@ -2773,10 +2862,10 @@ app.post('/api/social/posts', verifyToken, async (req, res) => {
       }
     }
     
-    console.log(`📝 Created social post for truck ${truckId}`);
+    logger.info(`📝 Created social post for truck ${truckId}`);
     res.json({ success: true, post });
   } catch (error) {
-    console.error('❌ Error creating social post:', error);
+    logger.error('❌ Error creating social post:', error);
     res.status(500).json({ message: 'Error creating social post' });
   }
 });
@@ -2814,7 +2903,7 @@ app.get('/api/social/posts/:truckId', verifyToken, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error fetching social posts:', error);
+    logger.error('❌ Error fetching social posts:', error);
     res.status(500).json({ message: 'Error fetching social posts' });
   }
 });
@@ -2838,10 +2927,10 @@ app.put('/api/social/posts/:postId', verifyToken, async (req, res) => {
     Object.assign(post, updates);
     await post.save();
     
-    console.log(`✏️ Updated social post ${postId}`);
+    logger.info(`✏️ Updated social post ${postId}`);
     res.json({ success: true, post });
   } catch (error) {
-    console.error('❌ Error updating social post:', error);
+    logger.error('❌ Error updating social post:', error);
     res.status(500).json({ message: 'Error updating social post' });
   }
 });
@@ -2863,10 +2952,10 @@ app.delete('/api/social/posts/:postId', verifyToken, async (req, res) => {
       await post.deleteOne();
     }
     
-    console.log(`🗑️ Deleted social post ${postId}`);
+    logger.info(`🗑️ Deleted social post ${postId}`);
     res.json({ success: true, message: 'Post deleted' });
   } catch (error) {
-    console.error('❌ Error deleting social post:', error);
+    logger.error('❌ Error deleting social post:', error);
     res.status(500).json({ message: 'Error deleting social post' });
   }
 });
@@ -2894,7 +2983,7 @@ app.get('/api/social/templates/:truckId', verifyToken, async (req, res) => {
       defaultTemplates
     });
   } catch (error) {
-    console.error('❌ Error fetching templates:', error);
+    logger.error('❌ Error fetching templates:', error);
     res.status(500).json({ message: 'Error fetching templates' });
   }
 });
@@ -2919,7 +3008,7 @@ app.get('/api/social/calendar/:truckId', verifyToken, async (req, res) => {
     
     res.json({ success: true, posts });
   } catch (error) {
-    console.error('❌ Error fetching calendar:', error);
+    logger.error('❌ Error fetching calendar:', error);
     res.status(500).json({ message: 'Error fetching calendar' });
   }
 });
@@ -2982,7 +3071,7 @@ app.get('/api/social/analytics/:truckId', verifyToken, async (req, res) => {
     
     res.json({ success: true, analytics });
   } catch (error) {
-    console.error('❌ Error fetching analytics:', error);
+    logger.error('❌ Error fetching analytics:', error);
     res.status(500).json({ message: 'Error fetching analytics' });
   }
 });
@@ -3002,10 +3091,10 @@ app.post('/api/social/campaigns', verifyToken, async (req, res) => {
     const campaign = new Campaign(campaignData);
     await campaign.save();
     
-    console.log(`🎯 Created campaign: ${campaign.name}`);
+    logger.info(`🎯 Created campaign: ${campaign.name}`);
     res.json({ success: true, campaign });
   } catch (error) {
-    console.error('❌ Error creating campaign:', error);
+    logger.error('❌ Error creating campaign:', error);
     res.status(500).json({ message: 'Error creating campaign' });
   }
 });
@@ -3029,7 +3118,7 @@ app.get('/api/social/campaigns/:truckId', verifyToken, async (req, res) => {
     
     res.json({ success: true, campaigns });
   } catch (error) {
-    console.error('❌ Error fetching campaigns:', error);
+    logger.error('❌ Error fetching campaigns:', error);
     res.status(500).json({ message: 'Error fetching campaigns' });
   }
 });
@@ -3047,10 +3136,10 @@ app.put('/api/social/campaigns/:campaignId', verifyToken, async (req, res) => {
     Object.assign(campaign, req.body);
     await campaign.save();
     
-    console.log(`✏️ Updated campaign: ${campaign.name}`);
+    logger.info(`✏️ Updated campaign: ${campaign.name}`);
     res.json({ success: true, campaign });
   } catch (error) {
-    console.error('❌ Error updating campaign:', error);
+    logger.error('❌ Error updating campaign:', error);
     res.status(500).json({ message: 'Error updating campaign' });
   }
 });
@@ -3106,7 +3195,7 @@ app.post('/api/social/generate-content', verifyToken, async (req, res) => {
     
     res.json({ success: true, content: generatedContent });
   } catch (error) {
-    console.error('❌ Error generating content:', error);
+    logger.error('❌ Error generating content:', error);
     res.status(500).json({ message: 'Error generating content' });
   }
 });
@@ -3133,22 +3222,23 @@ function generateAIContent(truck, type, context) {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('Server error:', err);
   res.status(500).json({ message: 'Something went wrong!' });
 });
 
 // 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ message: 'Route not found' });
-});
+app.use(notFound);
+
+// Global error handler (must be last)
+app.use(errorHandler);
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚚 Food Truck API Server running on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`💾 Database: MongoDB Atlas (Persistent Storage)`);
-  console.log(`📞 Phone numbers: REMOVED from all user interactions`);
-  console.log(`🎉 Data will now persist between restarts!`);
+  logger.info(`🚚 Food Truck API Server running on port ${PORT}`);
+  logger.info(`📍 Health check: http://localhost:${PORT}/api/health`);
+  logger.info(`💾 Database: MongoDB Atlas (Persistent Storage)`);
+  logger.info(`📞 Phone numbers: REMOVED from all user interactions`);
+  logger.info(`🎉 Data will now persist between restarts!`);
 });
 
 module.exports = app;
