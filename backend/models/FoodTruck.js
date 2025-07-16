@@ -8,6 +8,11 @@ const foodTruckSchema = new mongoose.Schema({
   cuisine: { type: String, trim: true, default: 'American' },
   rating: { type: Number, default: 0, min: 0, max: 5 },
   image: { type: String },
+  images: [{
+    url: { type: String, required: true },
+    type: { type: String, default: 'gallery' },
+    uploadedAt: { type: Date, default: Date.now }
+  }],
   email: { type: String, trim: true, lowercase: true },
   website: { type: String, trim: true },
   location: {
