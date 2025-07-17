@@ -41,8 +41,8 @@ android {
         applicationId = "com.foodtrucks.app.food_truck_app"
         minSdk = 21
         targetSdk = 35
-        versionCode = 103
-        versionName = "2.2.1"
+        versionCode = 107
+        versionName = "2.2.5"
     }
 
     signingConfigs {

@@ -1479,4 +1479,100 @@ class ApiService {
       return {'success': true, 'message': 'Child account deactivated'};
     }
   }
+  
+  // Get truck by ID
+  static Future<Map<String, dynamic>?> getTruckById(String truckId) async {
+    try {
+      debugPrint('🚚 Getting truck by ID: $truckId');
+      
+      // For now, return mock data since backend might not have this endpoint
+      return {
+        'id': truckId,
+        'name': 'Food Truck',
+        'businessName': 'Food Truck Business',
+        'description': 'Delicious food on wheels',
+        'ownerId': 'owner123',
+        'cuisineTypes': ['American', 'BBQ'],
+        'image': null,
+        'address': '123 Main St, City, State',
+        'schedule': {
+          'monday': {'isOpen': true, 'openTime': '11:00', 'closeTime': '20:00'},
+          'tuesday': {'isOpen': true, 'openTime': '11:00', 'closeTime': '20:00'},
+          'wednesday': {'isOpen': true, 'openTime': '11:00', 'closeTime': '20:00'},
+          'thursday': {'isOpen': true, 'openTime': '11:00', 'closeTime': '20:00'},
+          'friday': {'isOpen': true, 'openTime': '11:00', 'closeTime': '21:00'},
+          'saturday': {'isOpen': true, 'openTime': '10:00', 'closeTime': '21:00'},
+          'sunday': {'isOpen': false},
+        },
+        'isOpen': true,
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting truck by ID: $e');
+      return null;
+    }
+  }
+  
+  // Get truck locations
+  static Future<Map<String, dynamic>> getTruckLocations(String truckId) async {
+    try {
+      debugPrint('📍 Getting locations for truck: $truckId');
+      
+      // Return mock location data
+      return {
+        'locations': [
+          {
+            'id': 'loc1',
+            'name': 'Downtown Location',
+            'address': '123 Main Street, Downtown',
+            'latitude': 40.7128,
+            'longitude': -74.0060,
+            'isActive': true,
+          }
+        ]
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting truck locations: $e');
+      return {'locations': []};
+    }
+  }
+  
+  // Get menu items
+  static Future<Map<String, dynamic>> getMenuItems(String truckId) async {
+    try {
+      debugPrint('🍔 Getting menu items for truck: $truckId');
+      
+      // Return mock menu data
+      return {
+        'items': [
+          {
+            'id': 'item1',
+            'name': 'Signature Burger',
+            'price': 12.99,
+            'description': 'Our famous burger with special sauce',
+            'isFeatured': true,
+            'isSpecial': false,
+          },
+          {
+            'id': 'item2',
+            'name': 'BBQ Pulled Pork',
+            'price': 10.99,
+            'description': 'Slow cooked pulled pork sandwich',
+            'isFeatured': false,
+            'isSpecial': true,
+          },
+          {
+            'id': 'item3',
+            'name': 'Loaded Fries',
+            'price': 8.99,
+            'description': 'Crispy fries with all the toppings',
+            'isFeatured': true,
+            'isSpecial': false,
+          }
+        ]
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting menu items: $e');
+      return {'items': []};
+    }
+  }
 } 

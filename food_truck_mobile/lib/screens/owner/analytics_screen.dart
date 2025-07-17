@@ -326,18 +326,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
     
     final weeklyViews = _analyticsData!['weeklyViews'] as List;
-    final maxValue = weeklyViews
-        .map((day) => day['views'] as num)
-        .reduce((a, b) => a > b ? a : b)
-        .toInt();
+    
+    // Handle both array of numbers and array of objects
+    List<int> values = [];
+    if (weeklyViews.isNotEmpty) {
+      if (weeklyViews[0] is int || weeklyViews[0] is double) {
+        // Array of numbers: [43,32,43,17,49,43,59]
+        values = weeklyViews.map((v) => (v as num).toInt()).toList();
+      } else if (weeklyViews[0] is Map) {
+        // Array of objects: [{views: 43, day: "Mon"}, ...]
+        values = weeklyViews.map((day) => (day['views'] as num).toInt()).toList();
+      }
+    }
+    
+    if (values.isEmpty) {
+      return const Center(child: Text('No chart data available'));
+    }
+    
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       crossAxisAlignment: CrossAxisAlignment.end,
-      children: weeklyViews.map((dayData) {
-        final value = dayData['views'] as int;
-        final day = dayData['day'] as String;
-        final height = (value / maxValue) * 150;
+      children: List.generate(values.length, (index) {
+        final value = values[index];
+        final day = index < days.length ? days[index] : 'Day ${index + 1}';
+        final height = maxValue > 0 ? (value / maxValue) * 150.0 : 0.0;
         
         return Column(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -362,7 +377,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             ),
           ],
         );
-      }).toList(),
+      }),
     );
   }
 } 

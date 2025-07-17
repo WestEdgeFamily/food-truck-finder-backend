@@ -54,15 +54,11 @@ class _OwnerMainScreenState extends State<OwnerMainScreen> {
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
-            label: 'Dashboard',
+            label: 'Management',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.location_on),
             label: 'Location',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
           ),
         ],
       ),
@@ -73,7 +69,6 @@ class _OwnerMainScreenState extends State<OwnerMainScreen> {
     return [
       const BusinessDashboardScreen(),
       const LocationTrackingScreen(),
-      const OwnerProfileScreen(),
     ];
   }
 } 

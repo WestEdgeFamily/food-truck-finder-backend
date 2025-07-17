@@ -471,73 +471,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (newPasswordController.text.isNotEmpty && 
-                  newPasswordController.text == confirmPasswordController.text &&
-                  currentPasswordController.text.isNotEmpty) {
-                Navigator.of(context).pop();
-                
-                // Show loading
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Changing password...'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-                
-                try {
-                  // FIX FOR PASSWORD PERSISTENCE ISSUE - Actually call the API
-                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                  if (authProvider.user != null) {
-                    await ApiService.changePassword(
-                      authProvider.user!.id,
-                      currentPasswordController.text,
-                      newPasswordController.text,
-                    );
-                    
-                    // Show success message
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (newPasswordController.text.isNotEmpty && 
+                    newPasswordController.text == confirmPasswordController.text &&
+                    currentPasswordController.text.isNotEmpty) {
+                  Navigator.of(context).pop();
+                  
+                  // Show loading
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Changing password...'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                  
+                  try {
+                    // FIX FOR PASSWORD PERSISTENCE ISSUE - Actually call the API
+                    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                    if (authProvider.user != null) {
+                      await ApiService.changePassword(
+                        authProvider.user!.id,
+                        currentPasswordController.text,
+                        newPasswordController.text,
+                      );
+                      
+                      // Show success message
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Password changed successfully'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    }
+                  } catch (e) {
+                    // Show error message
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Password changed successfully'),
-                          backgroundColor: Colors.green,
-                          duration: Duration(seconds: 3),
+                        SnackBar(
+                          content: Text('Failed to change password: ${e.toString().replaceAll('Exception: ', '')}'),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 4),
                         ),
                       );
                     }
                   }
-                } catch (e) {
-                  // Show error message
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to change password: ${e.toString().replaceAll('Exception: ', '')}'),
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 4),
-                      ),
-                    );
-                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Passwords do not match or fields are empty'),
+                      backgroundColor: Colors.red,
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
                 }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Passwords do not match or fields are empty'),
-                    backgroundColor: Colors.red,
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              }
-            },
-            child: const Text('Change Password'),
-          ),
-        ],
-      ),
+              },
+              child: const Text('Change Password'),
+            ),
+          ],
         ),
       ),
     );
