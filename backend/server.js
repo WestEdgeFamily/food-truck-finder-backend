@@ -16,6 +16,14 @@ app.set('trust proxy', true);
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-change-this';
 
+// Warning for development
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  WARNING: Using default JWT secret in production. Set JWT_SECRET environment variable.');
+}
+if (!process.env.JWT_REFRESH_SECRET && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  WARNING: Using default JWT refresh secret in production. Set JWT_REFRESH_SECRET environment variable.');
+}
+
 // Rate limiting - configured for platforms behind reverse proxies
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

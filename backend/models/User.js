@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true
-    // Note: Using plain text passwords to match server.js (not recommended for production)
+    // Note: Properly hashed with bcrypt before saving (see pre-save middleware below)
   },
   name: {
     type: String,
@@ -48,14 +48,16 @@ const userSchema = new mongoose.Schema({
   refreshToken: {
     type: String
   }
-  // Removed favorites array - using separate Favorite model instead
-  // Removed bcrypt password hashing - using plain text to match server.js
-  // Removed complex profile fields not used in server.js
+  // Note: Using separate Favorite model for favorites functionality
+  // Note: Passwords are properly hashed with bcrypt (see pre-save middleware below)
+  // Note: Complex profile fields removed - keeping only fields used in server.js
 });
 
 // Index for better query performance
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ userId: 1 }); // For faster userId lookups
+userSchema.index({ email: 1, role: 1 }); // Compound index for login queries
 
 // Hash password before saving and set userId
 userSchema.pre('save', async function(next) {
