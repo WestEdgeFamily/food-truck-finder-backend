@@ -82,6 +82,40 @@ async function initializeDefaultData() {
           createdAt: new Date()
         }
       ];
+      
+      // Performance monitoring middleware
+app.use((req, res, next) => {
+  req.startTime = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - req.startTime;
+    if (duration > 1000) {
+      console.warn(`🐌 Slow request: ${req.method} ${req.path} took ${duration}ms`);
+    }
+    if (duration > 5000) {
+      console.error(`🚨 Very slow request: ${req.method} ${req.path} took ${duration}ms`);
+    }
+  });
+  next();
+});
+
+// Cache helper functions
+const getCacheKey = (prefix, params) => `${prefix}:${JSON.stringify(params)}`;
+const getFromCache = (key) => {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
+  cache.delete(key);
+  return null;
+};
+const setCache = (key, data) => {
+  cache.set(key, { data, timestamp: Date.now() });
+  // Clean old cache entries
+  if (cache.size > 1000) {
+    const keys = [...cache.keys()];
+    keys.slice(0, 100).forEach(k => cache.delete(k));
+  }
+};
 
       await User.insertMany(defaultUsers);
       console.log('✅ Default users created');
