@@ -681,10 +681,18 @@ app.get('/api/trucks/nearby', async (req, res) => {
     const nearbyTrucks = trucks.filter(truck => {
       if (!truck.location.latitude || !truck.location.longitude) return false;
       
-      const distance = Math.sqrt(
-        Math.pow(truck.location.latitude - parseFloat(lat), 2) +
-        Math.pow(truck.location.longitude - parseFloat(lng), 2)
-      ) * 111; // Rough km conversion
+    const nearbyTrucks = await FoodTruck.find({
+      'location.coordinates': {
+        $near: {
+        $geometry: {
+        type: 'Point',
+        coordinates: [parseFloat(lng), parseFloat(lat)]
+      },
+      $maxDistance: parseFloat(radius) * 1000 // Convert km to meters
+    }
+  },
+  isActive: true
+});
       
       return distance <= parseFloat(radius);
     });
