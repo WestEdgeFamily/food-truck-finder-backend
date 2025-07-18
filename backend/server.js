@@ -68,6 +68,9 @@ const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
 const Review = require('./models/Review');
 
+// Import validation middleware
+const { validateRegister, validateLogin } = require('./middleware/validation');
+
 // Middleware - Configure CORS for development (allow all origins)
 app.use(cors({
   origin: true, // Allow all origins for development
@@ -504,7 +507,7 @@ app.get('/api/auth/password-requirements', (req, res) => {
 });
 
 // Auth Routes (REMOVED PHONE NUMBER REQUIREMENTS)
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', validateLogin, async (req, res) => {
   try {
     const { email, password, role } = req.body;
     
@@ -581,7 +584,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', validateRegister, async (req, res) => {
   try {
     const { name, email, password, role, businessName } = req.body;
     
