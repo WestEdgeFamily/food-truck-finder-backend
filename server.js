@@ -8,6 +8,14 @@ const PORT = process.env.PORT || 5000;
 const User = require('./models/User');
 const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
+// Performance monitoring and caching
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Async error handler
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
 
 // Middleware - Configure CORS for development (allow all origins)
 app.use(cors({
