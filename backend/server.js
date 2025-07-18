@@ -1,6 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+const morgan = require('morgan');
+require('dotenv').config();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -8,14 +14,89 @@ const PORT = process.env.PORT || 5000;
 const User = require('./models/User');
 const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
-// Performance monitoring and caching
+
+// Phase 3: Advanced Caching System
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const requestMetrics = {
+  totalRequests: 0,
+  cachedResponses: 0,
+  avgResponseTime: 0,
+  slowQueries: []
+};
+
+// Phase 3: Performance Monitoring Middleware
+const performanceMonitor = (req, res, next) => {
+  const startTime = Date.now();
+  requestMetrics.totalRequests++;
+  
+  res.on('finish', () => {
+    const responseTime = Date.now() - startTime;
+    requestMetrics.avgResponseTime = 
+      (requestMetrics.avgResponseTime * (requestMetrics.totalRequests - 1) + responseTime) / 
+      requestMetrics.totalRequests;
+    
+    if (responseTime > 1000) { // Log slow queries (>1s)
+      requestMetrics.slowQueries.push({
+        path: req.path,
+        method: req.method,
+        responseTime,
+        timestamp: new Date()
+      });
+      
+      // Keep only last 50 slow queries
+      if (requestMetrics.slowQueries.length > 50) {
+        requestMetrics.slowQueries = requestMetrics.slowQueries.slice(-50);
+      }
+    }
+  });
+  
+  next();
+};
+
+// Phase 3: Cache Helper Functions
+const getCacheKey = (prefix, ...params) => `${prefix}:${params.join(':')}`;
+
+const setCache = (key, data, ttl = CACHE_TTL) => {
+  cache.set(key, {
+    data,
+    expiry: Date.now() + ttl
+  });
+};
+
+const getCache = (key) => {
+  const cached = cache.get(key);
+  if (!cached) return null;
+  
+  if (Date.now() > cached.expiry) {
+    cache.delete(key);
+    return null;
+  }
+  
+  requestMetrics.cachedResponses++;
+  return cached.data;
+};
 
 // Async error handler
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
+
+// Phase 3: Security and Performance Middleware
+app.use(helmet());
+app.use(compression());
+app.use(performanceMonitor);
+app.use(morgan('combined'));
+
+// Phase 3: Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter);
 
 // Middleware - Configure CORS for development (allow all origins)
 app.use(cors({
@@ -54,6 +135,22 @@ function isCurrentlyOpen(schedule) {
   }
   
   return currentTime >= todaySchedule.open && currentTime <= todaySchedule.close;
+}
+
+// Phase 2: Helper function to calculate distance between two points
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 999999; // Large number for invalid coordinates
+  
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distance = R * c;
+  
+  return Math.round(distance * 100) / 100; // Round to 2 decimal places
 }
 
 // Initialize database with default data if empty
@@ -523,22 +620,31 @@ app.put('/api/users/:userId/password', async (req, res) => {
 
 // ===== FOOD TRUCK ROUTES =====
 
-// Get all food trucks
-app.get('/api/trucks', async (req, res) => {
-  try {
-    const trucks = await FoodTruck.find();
-    // Update open/closed status for all trucks based on current time
-    const updatedTrucks = trucks.map(truck => ({
-      ...truck.toObject(),
-      isOpen: isCurrentlyOpen(truck.schedule)
-    }));
-    console.log(`📋 Getting all trucks: ${trucks.length} available`);
-    res.json(updatedTrucks);
-  } catch (error) {
-    console.error('❌ Error fetching trucks:', error);
-    res.status(500).json({ message: 'Error fetching food trucks' });
+// Get all food trucks - Phase 3 Optimized with Caching
+app.get('/api/trucks', asyncHandler(async (req, res) => {
+  const cacheKey = getCacheKey('all-trucks');
+  const cached = getCache(cacheKey);
+  
+  if (cached) {
+    console.log('📋 Returning cached trucks list');
+    return res.json(cached);
   }
-});
+  
+  const trucks = await FoodTruck.find({ isActive: true }).lean(); // Use lean() for better performance
+  
+  // Update open/closed status for all trucks based on current time
+  const updatedTrucks = trucks.map(truck => ({
+    ...truck,
+    isOpen: isCurrentlyOpen(truck.schedule)
+  }));
+  
+  console.log(`📋 Getting all trucks: ${trucks.length} available`);
+  
+  // Cache for shorter time since status changes frequently
+  setCache(cacheKey, updatedTrucks, 2 * 60 * 1000); // 2 minutes cache
+  
+  res.json(updatedTrucks);
+}));
 
 // Get single food truck
 app.get('/api/trucks/:id', async (req, res) => {
@@ -707,48 +813,87 @@ app.get('/api/trucks/search', async (req, res) => {
   }
 });
 
-// Get nearby trucks
-app.get('/api/trucks/nearby', async (req, res) => {
+// Get nearby trucks - Phase 2 & 3 Optimized
+app.get('/api/trucks/nearby', asyncHandler(async (req, res) => {
+  const { lat, lng, radius = 10 } = req.query;
+  
+  if (!lat || !lng) {
+    return res.status(400).json({ message: 'Latitude and longitude are required' });
+  }
+  
+  const cacheKey = getCacheKey('nearby', lat, lng, radius);
+  const cached = getCache(cacheKey);
+  
+  if (cached) {
+    console.log(`📍 Returning cached nearby trucks for: ${lat}, ${lng}`);
+    return res.json(cached);
+  }
+  
+  console.log(`📍 Finding trucks near: ${lat}, ${lng} within ${radius}km`);
+  
+  // Phase 2: Use MongoDB's geospatial queries for better performance
+  const longitude = parseFloat(lng);
+  const latitude = parseFloat(lat);
+  const radiusInMeters = parseFloat(radius) * 1000;
+  
   try {
-    const { lat, lng, radius = 10 } = req.query;
+    // First try using GeoJSON coordinates (new method)
+    let nearbyTrucks = await FoodTruck.find({
+      'location.coordinates': {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [longitude, latitude]
+          },
+          $maxDistance: radiusInMeters
+        }
+      },
+      isActive: true
+    }).limit(50); // Performance limit
     
-    if (!lat || !lng) {
-      return res.status(400).json({ message: 'Latitude and longitude are required' });
+    // Fallback to manual calculation if no coordinates or no results
+    if (nearbyTrucks.length === 0) {
+      console.log('📍 Falling back to manual distance calculation');
+      const allTrucks = await FoodTruck.find({ 
+        isActive: true,
+        'location.latitude': { $exists: true },
+        'location.longitude': { $exists: true }
+      });
+      
+      nearbyTrucks = allTrucks.filter(truck => {
+        const R = 6371; // Earth's radius in km
+        const dLat = (latitude - truck.location.latitude) * Math.PI / 180;
+        const dLng = (longitude - truck.location.longitude) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(truck.location.latitude * Math.PI / 180) * 
+                  Math.cos(latitude * Math.PI / 180) *
+                  Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        
+        return distance <= parseFloat(radius);
+      });
     }
     
-    console.log(`📍 Finding trucks near: ${lat}, ${lng} within ${radius}km`);
-    
-    // Simple distance calculation using basic math
-    const trucks = await FoodTruck.find({ isActive: true });
-    const nearbyTrucks = trucks.filter(truck => {
-      if (!truck.location.latitude || !truck.location.longitude) return false;
-      
-      // Calculate distance using Haversine formula
-      const R = 6371; // Earth's radius in km
-      const dLat = (parseFloat(lat) - truck.location.latitude) * Math.PI / 180;
-      const dLng = (parseFloat(lng) - truck.location.longitude) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(truck.location.latitude * Math.PI / 180) * 
-                Math.cos(parseFloat(lat) * Math.PI / 180) *
-                Math.sin(dLng/2) * Math.sin(dLng/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distance = R * c;
-      
-      return distance <= parseFloat(radius);
-    });
-    
-    const updatedTrucks = nearbyTrucks.map(truck => ({
+    // Add live status and calculate actual distance
+    const enrichedTrucks = nearbyTrucks.map(truck => ({
       ...truck.toObject(),
-      isOpen: isCurrentlyOpen(truck.schedule)
-    }));
+      isOpen: isCurrentlyOpen(truck.schedule),
+      distance: calculateDistance(latitude, longitude, truck.location.latitude, truck.location.longitude)
+    })).sort((a, b) => a.distance - b.distance);
     
-    console.log(`✅ Found ${nearbyTrucks.length} nearby trucks`);
-    res.json(updatedTrucks);
+    console.log(`✅ Found ${enrichedTrucks.length} nearby trucks`);
+    
+    // Phase 3: Cache the results
+    setCache(cacheKey, enrichedTrucks, CACHE_TTL);
+    
+    res.json(enrichedTrucks);
+    
   } catch (error) {
     console.error('❌ Error finding nearby trucks:', error);
     res.status(500).json({ message: 'Error finding nearby trucks' });
   }
-});
+}));
 
 // ===== SCHEDULE MANAGEMENT ROUTES =====
 
@@ -1036,6 +1181,64 @@ app.get('/api/trucks/:id/analytics', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching analytics:', error);
     res.status(500).json({ message: 'Error fetching analytics' });
+  }
+});
+
+// Phase 3: Performance Monitoring Endpoints
+app.get('/api/performance/metrics', (req, res) => {
+  const cacheHitRate = requestMetrics.totalRequests > 0 ? 
+    (requestMetrics.cachedResponses / requestMetrics.totalRequests * 100).toFixed(2) : 0;
+  
+  res.json({
+    performance: {
+      totalRequests: requestMetrics.totalRequests,
+      cachedResponses: requestMetrics.cachedResponses,
+      cacheHitRate: `${cacheHitRate}%`,
+      avgResponseTime: `${Math.round(requestMetrics.avgResponseTime)}ms`,
+      slowQueries: requestMetrics.slowQueries.slice(-10), // Last 10 slow queries
+      cacheSize: cache.size,
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage()
+    }
+  });
+});
+
+app.get('/api/performance/cache/clear', (req, res) => {
+  cache.clear();
+  res.json({ message: 'Cache cleared successfully', cacheSize: cache.size });
+});
+
+// Health check endpoint with enhanced info
+app.get('/api/health', async (req, res) => {
+  try {
+    // Check database connection
+    const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    const truckCount = await FoodTruck.countDocuments();
+    const userCount = await User.countDocuments();
+    
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      database: {
+        status: dbStatus,
+        collections: {
+          foodTrucks: truckCount,
+          users: userCount
+        }
+      },
+      performance: {
+        uptime: process.uptime(),
+        requests: requestMetrics.totalRequests,
+        cacheHitRate: requestMetrics.totalRequests > 0 ? 
+          `${(requestMetrics.cachedResponses / requestMetrics.totalRequests * 100).toFixed(2)}%` : '0%'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: 'unhealthy', 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
