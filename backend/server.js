@@ -718,23 +718,21 @@ app.get('/api/trucks/nearby', async (req, res) => {
     
     console.log(`📍 Finding trucks near: ${lat}, ${lng} within ${radius}km`);
     
-    // Simple distance calculation (in a real app, use MongoDB geospatial queries)
-    const trucks = await FoodTruck.find();
+    // Simple distance calculation using basic math
+    const trucks = await FoodTruck.find({ isActive: true });
     const nearbyTrucks = trucks.filter(truck => {
       if (!truck.location.latitude || !truck.location.longitude) return false;
       
-    const nearbyTrucks = await FoodTruck.find({
-      'location.coordinates': {
-        $near: {
-        $geometry: {
-        type: 'Point',
-        coordinates: [parseFloat(lng), parseFloat(lat)]
-      },
-      $maxDistance: parseFloat(radius) * 1000 // Convert km to meters
-    }
-  },
-  isActive: true
-});
+      // Calculate distance using Haversine formula
+      const R = 6371; // Earth's radius in km
+      const dLat = (parseFloat(lat) - truck.location.latitude) * Math.PI / 180;
+      const dLng = (parseFloat(lng) - truck.location.longitude) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(truck.location.latitude * Math.PI / 180) * 
+                Math.cos(parseFloat(lat) * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
       
       return distance <= parseFloat(radius);
     });
