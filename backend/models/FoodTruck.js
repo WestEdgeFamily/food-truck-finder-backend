@@ -17,7 +17,7 @@ const foodTruckSchema = new mongoose.Schema({
   website: { type: String, trim: true },
   location: {
     type: { type: String, enum: ['Point'], default: 'Point' },
-    coordinates: { type: [Number], index: '2dsphere' }, // [longitude, latitude]
+    coordinates: { type: [Number] }, // [longitude, latitude] - index defined below
     latitude: { type: Number },
     longitude: { type: Number },
     address: { type: String, trim: true }

@@ -1,6 +1,6 @@
 {
   "name": "food-truck-finder-backend",
-  "version": "1.56.0",
+  "version": "1.56.1",
   "description": "Backend API for Food Truck Finder app with photo upload capabilities and POS settings",
   "main": "backend/server.js",
   "scripts": {
