@@ -15,6 +15,10 @@ const User = require('./models/User');
 const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
 
+// Import photo upload services
+const { cloudinary, upload } = require('./config/cloudinary');
+const ImageProcessingService = require('./services/imageProcessingService');
+
 // Phase 3: Advanced Caching System
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -722,13 +726,37 @@ app.put('/api/trucks/:id/location', async (req, res) => {
   }
 });
 
-// Update cover photo
-app.put('/api/trucks/:id/cover-photo', async (req, res) => {
+// Update cover photo - Enhanced with file upload support
+app.put('/api/trucks/:id/cover-photo', upload.single('coverPhoto'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { imageUrl } = req.body;
+    let imageUrl = req.body.imageUrl; // URL from request body (existing functionality)
     
     console.log(`📸 Cover photo update request for truck ${id}`);
+    
+    // If file was uploaded, use Cloudinary URL
+    if (req.file) {
+      imageUrl = req.file.path; // Cloudinary URL
+      console.log(`📤 File uploaded to Cloudinary: ${imageUrl}`);
+      
+      // Get image metadata for logging
+      try {
+        const metadata = await ImageProcessingService.getImageMetadata(req.file.buffer || Buffer.from(''));
+        console.log(`📊 Image metadata:`, {
+          dimensions: `${metadata.width}x${metadata.height}`,
+          format: metadata.format,
+          size: `${Math.round(metadata.size / 1024)}KB`
+        });
+      } catch (metaError) {
+        console.log('Could not extract metadata, but upload succeeded');
+      }
+    }
+    
+    if (!imageUrl) {
+      return res.status(400).json({ 
+        message: 'No image provided. Please upload a file or provide an image URL.' 
+      });
+    }
     
     const truck = await FoodTruck.findOneAndUpdate(
       { id },
@@ -744,15 +772,192 @@ app.put('/api/trucks/:id/cover-photo', async (req, res) => {
       res.json({ 
         success: true, 
         message: 'Cover photo updated successfully',
-        image: truck.image 
+        image: truck.image,
+        uploadType: req.file ? 'file' : 'url'
       });
     } else {
+      // If truck not found but file was uploaded, clean up Cloudinary
+      if (req.file && req.file.public_id) {
+        try {
+          await cloudinary.uploader.destroy(req.file.public_id);
+          console.log(`🗑️ Cleaned up uploaded file: ${req.file.public_id}`);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup uploaded file:', cleanupError);
+        }
+      }
+      
       console.log(`❌ Truck not found: ${id}`);
       res.status(404).json({ message: 'Food truck not found' });
     }
   } catch (error) {
     console.error('❌ Error updating cover photo:', error);
-    res.status(500).json({ message: 'Error updating cover photo' });
+    
+    // If there was an upload error, provide more specific error message
+    if (error.message.includes('Only image files are allowed')) {
+      return res.status(400).json({ 
+        message: 'Invalid file type. Please upload an image file (JPG, PNG, or WebP).' 
+      });
+    }
+    
+    if (error.message.includes('File too large')) {
+      return res.status(400).json({ 
+        message: 'File too large. Please upload an image smaller than 10MB.' 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Error updating cover photo',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Upload multiple gallery photos
+app.post('/api/trucks/:id/gallery', upload.array('photos', 10), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No photos uploaded' });
+    }
+    
+    console.log(`📸 Gallery upload request for truck ${id}, ${req.files.length} files`);
+    
+    const truck = await FoodTruck.findOne({ id });
+    if (!truck) {
+      // Clean up uploaded files if truck not found
+      for (const file of req.files) {
+        if (file.public_id) {
+          try {
+            await cloudinary.uploader.destroy(file.public_id);
+          } catch (cleanupError) {
+            console.error('Failed to cleanup file:', cleanupError);
+          }
+        }
+      }
+      return res.status(404).json({ message: 'Food truck not found' });
+    }
+    
+    // Process uploaded files
+    const newImages = req.files.map(file => ({
+      url: file.path,
+      type: 'gallery',
+      uploadedAt: new Date(),
+      public_id: file.public_id // Store for future deletion
+    }));
+    
+    // Add to existing images array
+    truck.images = truck.images || [];
+    truck.images.push(...newImages);
+    truck.lastUpdated = new Date();
+    
+    await truck.save();
+    
+    console.log(`✅ Added ${newImages.length} photos to ${truck.name} gallery`);
+    res.json({
+      success: true,
+      message: `${newImages.length} photos added to gallery`,
+      images: newImages,
+      totalImages: truck.images.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error uploading gallery photos:', error);
+    res.status(500).json({ 
+      message: 'Error uploading photos',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Delete specific gallery photo
+app.delete('/api/trucks/:id/gallery/:imageId', async (req, res) => {
+  try {
+    const { id, imageId } = req.params;
+    
+    console.log(`🗑️ Delete photo request for truck ${id}, image ${imageId}`);
+    
+    const truck = await FoodTruck.findOne({ id });
+    if (!truck) {
+      return res.status(404).json({ message: 'Food truck not found' });
+    }
+    
+    // Find the image to delete
+    const imageIndex = truck.images.findIndex(img => img._id.toString() === imageId);
+    if (imageIndex === -1) {
+      return res.status(404).json({ message: 'Image not found' });
+    }
+    
+    const imageToDelete = truck.images[imageIndex];
+    
+    // Delete from Cloudinary if it has a public_id
+    if (imageToDelete.public_id) {
+      try {
+        await cloudinary.uploader.destroy(imageToDelete.public_id);
+        console.log(`🗑️ Deleted from Cloudinary: ${imageToDelete.public_id}`);
+      } catch (cloudError) {
+        console.error('Failed to delete from Cloudinary:', cloudError);
+        // Continue with database deletion even if Cloudinary fails
+      }
+    }
+    
+    // Remove from database
+    truck.images.splice(imageIndex, 1);
+    truck.lastUpdated = new Date();
+    await truck.save();
+    
+    console.log(`✅ Photo deleted from ${truck.name} gallery`);
+    res.json({
+      success: true,
+      message: 'Photo deleted successfully',
+      remainingImages: truck.images.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error deleting photo:', error);
+    res.status(500).json({ message: 'Error deleting photo' });
+  }
+});
+
+// Get image upload progress (for large files)
+app.get('/api/trucks/:id/upload-status/:uploadId', (req, res) => {
+  // This would typically connect to a upload progress tracking system
+  // For now, return a simple status
+  res.json({
+    uploadId: req.params.uploadId,
+    status: 'completed',
+    progress: 100
+  });
+});
+
+// Validate image before upload (optional endpoint for pre-upload validation)
+app.post('/api/trucks/validate-image', upload.single('image'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image provided' });
+    }
+    
+    // Delete the validated image (we're just checking if it's valid)
+    if (req.file.public_id) {
+      cloudinary.uploader.destroy(req.file.public_id);
+    }
+    
+    res.json({
+      valid: true,
+      message: 'Image is valid and ready for upload',
+      metadata: {
+        originalName: req.file.originalname,
+        size: req.file.size,
+        format: req.file.format
+      }
+    });
+    
+  } catch (error) {
+    res.status(400).json({
+      valid: false,
+      message: 'Invalid image file',
+      error: error.message
+    });
   }
 });
 
@@ -1239,6 +1444,110 @@ app.get('/api/health', async (req, res) => {
       error: error.message,
       timestamp: new Date().toISOString()
     });
+  }
+});
+
+// ===== POS INTEGRATION ROUTES =====
+
+// Get POS settings for owner
+app.get('/api/pos/settings/:ownerId', async (req, res) => {
+  try {
+    const { ownerId } = req.params;
+    
+    console.log(`🏪 Getting POS settings for owner: ${ownerId}`);
+    
+    const truck = await FoodTruck.findOne({ ownerId });
+    if (!truck) {
+      return res.status(404).json({ success: false, message: 'Food truck not found for this owner' });
+    }
+    
+    // Return POS settings with defaults if not set
+    const posSettings = truck.posSettings || {
+      parentAccountId: ownerId,
+      childAccounts: [],
+      allowPosTracking: true,
+      posApiKey: `pos_${ownerId}_${Date.now()}`,
+      posWebhookUrl: null
+    };
+    
+    res.json({
+      success: true,
+      ...posSettings
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching POS settings:', error);
+    res.status(500).json({ success: false, message: 'Error fetching POS settings' });
+  }
+});
+
+// Update POS settings
+app.put('/api/pos/settings/:ownerId', async (req, res) => {
+  try {
+    const { ownerId } = req.params;
+    const { allowPosTracking, posWebhookUrl } = req.body;
+    
+    console.log(`🏪 Updating POS settings for owner: ${ownerId}`);
+    
+    const truck = await FoodTruck.findOneAndUpdate(
+      { ownerId },
+      { 
+        'posSettings.allowPosTracking': allowPosTracking,
+        'posSettings.posWebhookUrl': posWebhookUrl,
+        lastUpdated: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!truck) {
+      return res.status(404).json({ success: false, message: 'Food truck not found for this owner' });
+    }
+    
+    console.log(`✅ POS settings updated for owner: ${ownerId}`);
+    
+    res.json({
+      success: true,
+      message: 'POS settings updated successfully',
+      posSettings: truck.posSettings
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating POS settings:', error);
+    res.status(500).json({ success: false, message: 'Error updating POS settings' });
+  }
+});
+
+// Get POS settings by truck ID (for mobile app compatibility)
+app.get('/api/trucks/:id/pos-settings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`🏪 Getting POS settings for truck ID: ${id}`);
+    
+    const truck = await FoodTruck.findById(id);
+    if (!truck) {
+      return res.status(404).json({ success: false, message: 'Food truck not found' });
+    }
+    
+    // Return POS settings with defaults if not set
+    const posSettings = truck.posSettings || {
+      parentAccountId: truck.ownerId,
+      childAccounts: [],
+      allowPosTracking: true,
+      posApiKey: `pos_${truck.ownerId}_${Date.now()}`,
+      posWebhookUrl: null
+    };
+    
+    console.log(`✅ POS settings retrieved for truck: ${truck.name}`);
+    
+    res.json({
+      success: true,
+      data: posSettings
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching POS settings by truck ID:', error);
+    res.status(500).json({ success: false, message: 'Error fetching POS settings' });
   }
 });
 
