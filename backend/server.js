@@ -92,13 +92,19 @@ app.use(compression());
 app.use(performanceMonitor);
 app.use(morgan('combined'));
 
-// Phase 3: Rate Limiting
+// Phase 3: Rate Limiting with Render/proxy support
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  // Fix for Render proxy environment
+  trustProxy: true,
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/api/health' || req.path === '/';
+  }
 });
 app.use('/api/', limiter);
 
@@ -1524,7 +1530,8 @@ app.get('/api/trucks/:id/pos-settings', async (req, res) => {
     
     console.log(`🏪 Getting POS settings for truck ID: ${id}`);
     
-    const truck = await FoodTruck.findById(id);
+    // Use custom 'id' field instead of MongoDB's '_id'
+    const truck = await FoodTruck.findOne({ id: id });
     if (!truck) {
       return res.status(404).json({ success: false, message: 'Food truck not found' });
     }
@@ -1548,6 +1555,114 @@ app.get('/api/trucks/:id/pos-settings', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching POS settings by truck ID:', error);
     res.status(500).json({ success: false, message: 'Error fetching POS settings' });
+  }
+});
+
+// Add missing social media endpoints
+app.get('/api/social/accounts/:truckId', async (req, res) => {
+  try {
+    const { truckId } = req.params;
+    
+    // For now, return empty social accounts - can be expanded later
+    res.json({
+      success: true,
+      data: {
+        truckId,
+        socialAccounts: {
+          facebook: null,
+          instagram: null,
+          twitter: null,
+          tiktok: null
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching social accounts:', error);
+    res.status(500).json({ success: false, message: 'Error fetching social accounts' });
+  }
+});
+
+app.get('/api/social/posts', async (req, res) => {
+  try {
+    const { truckId, page = 1, limit = 3 } = req.query;
+    
+    // For now, return empty posts - can be expanded later with real social integration
+    res.json({
+      success: true,
+      data: {
+        posts: [],
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: 0,
+          hasNext: false
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching social posts:', error);
+    res.status(500).json({ success: false, message: 'Error fetching social posts' });
+  }
+});
+
+// Add missing reviews endpoint
+app.get('/api/trucks/:id/reviews', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 3 } = req.query;
+    
+    // For now, return empty reviews - can be expanded later with review system
+    res.json({
+      success: true,
+      data: {
+        reviews: [],
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: 0,
+          hasNext: false
+        },
+        averageRating: 0
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching reviews:', error);
+    res.status(500).json({ success: false, message: 'Error fetching reviews' });
+  }
+});
+
+// Fix truck update endpoint to use custom id field
+app.put('/api/trucks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`🔄 Updating truck with ID: ${id}`);
+    
+    // Use custom 'id' field instead of MongoDB's '_id'
+    const truck = await FoodTruck.findOneAndUpdate(
+      { id: id },
+      { ...req.body, lastUpdated: new Date() },
+      { new: true, runValidators: true }
+    );
+    
+    if (!truck) {
+      return res.status(404).json({ success: false, message: 'Food truck not found' });
+    }
+    
+    // Clear relevant caches
+    cache.delete(getCacheKey('trucks', 'all'));
+    cache.delete(getCacheKey('truck', id));
+    
+    console.log(`✅ Truck updated successfully: ${truck.name}`);
+    
+    res.json({
+      success: true,
+      data: truck
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating truck:', error);
+    res.status(500).json({ success: false, message: 'Error updating truck' });
   }
 });
 
