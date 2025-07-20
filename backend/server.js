@@ -16,7 +16,6 @@ const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
 
 // Import photo upload services
-const { cloudinary, upload } = require('./config/cloudinary');
 const ImageProcessingService = require('./services/imageProcessingService');
 
 // Phase 3: Advanced Caching System
@@ -732,42 +731,54 @@ app.put('/api/trucks/:id/location', async (req, res) => {
   }
 });
 
-// Update cover photo - Enhanced with file upload support
-app.put('/api/trucks/:id/cover-photo', upload.single('coverPhoto'), async (req, res) => {
+// Update cover photo - MongoDB-only storage (simplified)
+app.put('/api/trucks/:id/cover-photo', async (req, res) => {
   try {
     const { id } = req.params;
-    let imageUrl = req.body.imageUrl; // URL from request body (existing functionality)
+    let imageUrl = null;
     
     console.log(`📸 Cover photo update request for truck ${id}`);
     
-    // If file was uploaded, use Cloudinary URL
-    if (req.file) {
-      imageUrl = req.file.path; // Cloudinary URL
-      console.log(`📤 File uploaded to Cloudinary: ${imageUrl}`);
+    // Handle base64 image data (our preferred method)
+    if (req.body.base64Image) {
+      const base64Data = req.body.base64Image;
+      console.log(`📱 Base64 image provided, size: ${base64Data.length} characters`);
       
-      // Get image metadata for logging
-      try {
-        const metadata = await ImageProcessingService.getImageMetadata(req.file.buffer || Buffer.from(''));
-        console.log(`📊 Image metadata:`, {
-          dimensions: `${metadata.width}x${metadata.height}`,
-          format: metadata.format,
-          size: `${Math.round(metadata.size / 1024)}KB`
+      // Check if base64 is reasonable size (max ~3.5MB when encoded = ~2.5MB original)
+      // This is well within MongoDB's 16MB document limit
+      if (base64Data.length > 4700000) {
+        return res.status(400).json({ 
+          message: 'Image too large. Please use a smaller image (max 2.5MB).' 
         });
-      } catch (metaError) {
-        console.log('Could not extract metadata, but upload succeeded');
       }
+      
+      // Validate base64 format
+      if (!base64Data.startsWith('data:image/')) {
+        return res.status(400).json({ 
+          message: 'Invalid image format. Please provide a valid image.' 
+        });
+      }
+      
+      imageUrl = base64Data;
+      console.log(`✅ Base64 image accepted for MongoDB storage`);
+    }
+    // Handle legacy URL uploads (from existing data)
+    else if (req.body.imageUrl) {
+      imageUrl = req.body.imageUrl;
+      console.log(`🔗 Image URL provided: ${imageUrl.substring(0, 50)}...`);
     }
     
     if (!imageUrl) {
       return res.status(400).json({ 
-        message: 'No image provided. Please upload a file or provide an image URL.' 
+        message: 'No image provided. Please provide a base64 image or image URL.' 
       });
     }
     
     const truck = await FoodTruck.findOneAndUpdate(
       { id },
       { 
-        image: imageUrl,
+        coverImage: imageUrl,  // Use coverImage field instead of image
+        image: imageUrl,       // Also update image for backward compatibility
         lastUpdated: new Date()
       },
       { new: true }
@@ -778,20 +789,11 @@ app.put('/api/trucks/:id/cover-photo', upload.single('coverPhoto'), async (req, 
       res.json({ 
         success: true, 
         message: 'Cover photo updated successfully',
-        image: truck.image,
-        uploadType: req.file ? 'file' : 'url'
+        image: truck.coverImage,  // Return coverImage
+        coverImage: truck.coverImage,  // Ensure both fields are available
+        storageType: 'mongodb'
       });
     } else {
-      // If truck not found but file was uploaded, clean up Cloudinary
-      if (req.file && req.file.public_id) {
-        try {
-          await cloudinary.uploader.destroy(req.file.public_id);
-          console.log(`🗑️ Cleaned up uploaded file: ${req.file.public_id}`);
-        } catch (cleanupError) {
-          console.error('Failed to cleanup uploaded file:', cleanupError);
-        }
-      }
-      
       console.log(`❌ Truck not found: ${id}`);
       res.status(404).json({ message: 'Food truck not found' });
     }
@@ -807,7 +809,7 @@ app.put('/api/trucks/:id/cover-photo', upload.single('coverPhoto'), async (req, 
     
     if (error.message.includes('File too large')) {
       return res.status(400).json({ 
-        message: 'File too large. Please upload an image smaller than 10MB.' 
+        message: 'File too large. Please upload an image smaller than 5MB.' 
       });
     }
     
@@ -1665,6 +1667,120 @@ app.put('/api/trucks/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error updating truck' });
   }
 });
+
+// =============================================================================
+// POS INTEGRATION ENDPOINTS
+// =============================================================================
+
+// Get POS settings for a truck
+app.get('/api/trucks/:id/pos-settings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`📊 Getting POS settings for truck ${id}`);
+    
+    const truck = await FoodTruck.findOne({ id });
+    if (!truck) {
+      return res.status(404).json({ success: false, message: 'Food truck not found' });
+    }
+    
+    // Return POS settings or default values
+    const posSettings = truck.posSettings || {
+      allowPosTracking: false,
+      posApiKey: null,
+      salesAnalytics: false,
+      reportSettings: {
+        weekly: false,
+        monthly: false,
+        quarterly: false,
+        semiAnnually: false,
+        annually: false
+      }
+    };
+    
+    res.json({
+      success: true,
+      posSettings: posSettings
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting POS settings:', error);
+    res.status(500).json({ success: false, message: 'Error getting POS settings' });
+  }
+});
+
+// Update POS settings for a truck
+app.put('/api/trucks/:id/pos-settings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const posSettings = req.body;
+    console.log(`📊 Updating POS settings for truck ${id}`);
+    
+    const truck = await FoodTruck.findOneAndUpdate(
+      { id },
+      { 
+        $set: { 
+          posSettings: posSettings,
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    );
+    
+    if (!truck) {
+      return res.status(404).json({ success: false, message: 'Food truck not found' });
+    }
+    
+    // Clear relevant caches
+    cache.delete(getCacheKey('trucks', 'all'));
+    cache.delete(getCacheKey('truck', id));
+    
+    console.log(`✅ POS settings updated for truck: ${truck.name}`);
+    
+    res.json({
+      success: true,
+      data: truck
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating POS settings:', error);
+    res.status(500).json({ success: false, message: 'Error updating POS settings' });
+  }
+});
+
+// Test POS connection endpoint
+app.post('/api/trucks/:id/pos-test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { posSystem } = req.body;
+    console.log(`🔌 Testing POS connection for truck ${id} with system ${posSystem}`);
+    
+    const truck = await FoodTruck.findOne({ id });
+    if (!truck) {
+      return res.status(404).json({ success: false, message: 'Food truck not found' });
+    }
+    
+    // Simulate POS connection test
+    // In a real implementation, this would test actual API connections
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate delay
+    
+    const isConnected = Math.random() > 0.1; // 90% success rate for demo
+    
+    res.json({
+      success: true,
+      connected: isConnected,
+      system: posSystem,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Error testing POS connection:', error);
+    res.status(500).json({ success: false, message: 'Error testing POS connection' });
+  }
+});
+
+// =============================================================================
+// END POS INTEGRATION ENDPOINTS
+// =============================================================================
 
 // Start server
 app.listen(PORT, () => {
