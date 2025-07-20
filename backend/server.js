@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 5000;
 const User = require('./models/User');
 const FoodTruck = require('./models/FoodTruck');
 const Favorite = require('./models/Favorite');
+const Review = require('./models/Review');
 
 // Import photo upload services
 const ImageProcessingService = require('./services/imageProcessingService');
@@ -1468,25 +1469,114 @@ app.get('/api/social/posts', async (req, res) => {
 app.get('/api/trucks/:id/reviews', async (req, res) => {
   try {
     const { id } = req.params;
-    const { page = 1, limit = 3 } = req.query;
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // For now, return empty reviews - can be expanded later with review system
+    console.log(`📝 Fetching reviews for truck ${id}, page ${page}`);
+    
+    // Get reviews for this truck
+    const reviews = await Review.find({ truckId: id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    // Get total count for pagination
+    const totalReviews = await Review.countDocuments({ truckId: id });
+    
+    // Calculate average rating
+    const ratingStats = await Review.aggregate([
+      { $match: { truckId: id } },
+      { $group: { _id: null, averageRating: { $avg: '$rating' } } }
+    ]);
+    
+    const averageRating = ratingStats.length > 0 ? ratingStats[0].averageRating : 0;
+    
     res.json({
       success: true,
       data: {
-        reviews: [],
+        reviews: reviews,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total: 0,
-          hasNext: false
+          total: totalReviews,
+          hasNext: skip + reviews.length < totalReviews
         },
-        averageRating: 0
+        averageRating: Math.round(averageRating * 10) / 10 // Round to 1 decimal place
       }
     });
   } catch (error) {
     console.error('❌ Error fetching reviews:', error);
     res.status(500).json({ success: false, message: 'Error fetching reviews' });
+  }
+});
+
+// Add new review endpoint
+app.post('/api/trucks/:id/reviews', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, userName, rating, comment } = req.body;
+    
+    console.log(`📝 Adding review for truck ${id} by user ${userName}`);
+    
+    // Validate required fields
+    if (!userId || !userName || !rating || !comment) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields: userId, userName, rating, comment' 
+      });
+    }
+    
+    // Validate rating range
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Rating must be between 1 and 5' 
+      });
+    }
+    
+    // Check if user already reviewed this truck
+    const existingReview = await Review.findOne({ userId, truckId: id });
+    if (existingReview) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You have already reviewed this food truck' 
+      });
+    }
+    
+    // Create new review
+    const review = new Review({
+      userId,
+      truckId: id,
+      userName,
+      rating: parseInt(rating),
+      comment: comment.trim()
+    });
+    
+    await review.save();
+    
+    // Update truck's review count and average rating
+    const allReviews = await Review.find({ truckId: id });
+    const averageRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+    
+    await FoodTruck.findOneAndUpdate(
+      { id },
+      { 
+        reviewCount: allReviews.length,
+        rating: Math.round(averageRating * 10) / 10
+      }
+    );
+    
+    console.log(`✅ Review added successfully for truck ${id}`);
+    
+    res.json({
+      success: true,
+      message: 'Review added successfully',
+      data: review
+    });
+    
+  } catch (error) {
+    console.error('❌ Error adding review:', error);
+    res.status(500).json({ success: false, message: 'Error adding review' });
   }
 });
 
