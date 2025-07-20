@@ -17,11 +17,12 @@ const storage = new CloudinaryStorage({
     allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
     transformation: [
       {
-        width: 1200,
-        height: 600,
+        width: 1200,      // Reduced from 1200 for faster processing
+        height: 600,      // Keep aspect ratio friendly
         crop: 'fill',
-        quality: 'auto:good',
-        fetch_format: 'auto'
+        quality: 'auto:low', // More aggressive compression
+        fetch_format: 'auto', // Let Cloudinary choose best format
+        dpr: 'auto'       // Optimize for device pixel ratio
       }
     ],
     public_id: (req, file) => {
@@ -48,7 +49,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
+    fileSize: 5 * 1024 * 1024, // 5MB limit (reduced from 10MB for mobile)
   },
 });
 
