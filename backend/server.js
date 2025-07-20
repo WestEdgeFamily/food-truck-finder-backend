@@ -786,6 +786,12 @@ app.put('/api/trucks/:id/cover-photo', async (req, res) => {
     
     if (truck) {
       console.log(`✅ Cover photo updated for ${truck.name}`);
+      
+      // Invalidate cache to ensure updated photos are immediately visible
+      cache.delete(getCacheKey('all-trucks'));
+      cache.delete(getCacheKey('truck', id));
+      console.log(`🗑️ Cache invalidated for truck ${id}`);
+      
       res.json({ 
         success: true, 
         message: 'Cover photo updated successfully',
