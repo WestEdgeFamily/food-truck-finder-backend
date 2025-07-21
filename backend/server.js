@@ -1469,16 +1469,23 @@ app.get('/api/social/posts', async (req, res) => {
 app.get('/api/trucks/:id/reviews', async (req, res) => {
   try {
     const { id } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, userId } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    console.log(`📝 Fetching reviews for truck ${id}, page ${page}`);
+    console.log(`📝 Fetching reviews for truck ${id}, page ${page}, userId: ${userId}`);
     
     // Get reviews for this truck
     const reviews = await Review.find({ truckId: id })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
+    
+    // Add hasUserVotedHelpful field to each review
+    const reviewsWithUserVote = reviews.map(review => {
+      const reviewObj = review.toObject();
+      reviewObj.hasUserVotedHelpful = userId ? review.helpfulVotes.includes(userId) : false;
+      return reviewObj;
+    });
     
     // Get total count for pagination
     const totalReviews = await Review.countDocuments({ truckId: id });
@@ -1494,12 +1501,12 @@ app.get('/api/trucks/:id/reviews', async (req, res) => {
     res.json({
       success: true,
       data: {
-        reviews: reviews,
+        reviews: reviewsWithUserVote,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
           total: totalReviews,
-          hasNext: skip + reviews.length < totalReviews
+          hasNext: skip + reviewsWithUserVote.length < totalReviews
         },
         averageRating: Math.round(averageRating * 10) / 10 // Round to 1 decimal place
       }
@@ -1577,6 +1584,120 @@ app.post('/api/trucks/:id/reviews', async (req, res) => {
   } catch (error) {
     console.error('❌ Error adding review:', error);
     res.status(500).json({ success: false, message: 'Error adding review' });
+  }
+});
+
+// Respond to a review endpoint
+app.post('/api/reviews/:id/respond', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { response, respondedBy } = req.body;
+    
+    console.log(`💬 Adding response to review ${id} by ${respondedBy}`);
+    
+    // Validate required fields
+    if (!response || !respondedBy) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields: response, respondedBy' 
+      });
+    }
+    
+    // Find and update the review
+    const review = await Review.findById(id);
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if review already has a response
+    if (review.response) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Review already has a response' 
+      });
+    }
+    
+    // Add the response
+    review.response = {
+      text: response.trim(),
+      respondedAt: new Date(),
+      respondedBy: respondedBy
+    };
+    review.updatedAt = new Date();
+    
+    await review.save();
+    
+    console.log(`✅ Response added to review ${id}`);
+    
+    res.json({
+      success: true,
+      message: 'Response added successfully',
+      data: review
+    });
+    
+  } catch (error) {
+    console.error('❌ Error responding to review:', error);
+    res.status(500).json({ success: false, message: 'Error responding to review' });
+  }
+});
+
+// Mark review as helpful endpoint
+app.post('/api/reviews/:id/helpful', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    
+    console.log(`👍 Marking review ${id} as helpful by user ${userId}`);
+    
+    // Validate required fields
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required field: userId' 
+      });
+    }
+    
+    // Find the review
+    const review = await Review.findById(id);
+    if (!review) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Review not found' 
+      });
+    }
+    
+    // Check if user already voted
+    if (review.helpfulVotes.includes(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User has already marked this review as helpful' 
+      });
+    }
+    
+    // Add the vote
+    review.helpfulVotes.push(userId);
+    review.helpfulCount = review.helpfulVotes.length;
+    review.updatedAt = new Date();
+    
+    await review.save();
+    
+    console.log(`✅ Review ${id} marked as helpful (total: ${review.helpfulCount})`);
+    
+    res.json({
+      success: true,
+      message: 'Review marked as helpful',
+      data: {
+        helpfulCount: review.helpfulCount,
+        hasUserVotedHelpful: true
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error marking review helpful:', error);
+    res.status(500).json({ success: false, message: 'Error marking review helpful' });
   }
 });
 

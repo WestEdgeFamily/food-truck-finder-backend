@@ -1,5 +1,21 @@
 const mongoose = require('mongoose');
 
+const reviewResponseSchema = new mongoose.Schema({
+  text: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  respondedAt: {
+    type: Date,
+    default: Date.now
+  },
+  respondedBy: {
+    type: String,
+    required: true
+  }
+});
+
 const reviewSchema = new mongoose.Schema({
   userId: {
     type: String,
@@ -23,6 +39,22 @@ const reviewSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+  photos: {
+    type: [String],
+    default: []
+  },
+  helpfulCount: {
+    type: Number,
+    default: 0
+  },
+  helpfulVotes: {
+    type: [String], // Array of user IDs who marked this helpful
+    default: []
+  },
+  response: {
+    type: reviewResponseSchema,
+    default: null
   },
   createdAt: {
     type: Date,
