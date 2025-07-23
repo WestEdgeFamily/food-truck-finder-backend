@@ -19,9 +19,19 @@ const Review = require('./models/Review');
 // Import photo upload services
 const ImageProcessingService = require('./services/imageProcessingService');
 const AutomatedVerificationService = require('./services/automatedVerificationService');
+const ProductionAutomatedVerificationService = require('./services/productionAutomatedVerificationService');
 
-// Initialize services
-const automatedVerification = new AutomatedVerificationService();
+// Initialize services - Use production service if API keys are available
+const hasProductionKeys = process.env.THOMSON_REUTERS_API_KEY || 
+                         process.env.LEXISNEXIS_API_KEY || 
+                         process.env.COLORADO_SOS_API_KEY ||
+                         process.env.DNB_API_KEY;
+
+const automatedVerification = hasProductionKeys 
+  ? new ProductionAutomatedVerificationService()
+  : new AutomatedVerificationService();
+
+console.log(`🤖 Using ${hasProductionKeys ? 'PRODUCTION' : 'SIMULATION'} verification service`);
 
 // Phase 3: Advanced Caching System
 const cache = new Map();
