@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
     },
     verificationStatus: {
       type: String,
-      enum: ['pending', 'approved', 'rejected', 'not_submitted'],
+      enum: ['pending', 'approved', 'rejected', 'not_submitted', 'pending_manual_review'],
       default: 'not_submitted'
     },
     businessLicenseNumber: String,
@@ -46,10 +46,50 @@ const userSchema = new mongoose.Schema({
     businessState: String,
     businessPhone: String,
     businessEmail: String,
+    ein: String, // Employer Identification Number for automated verification
     submittedAt: Date,
     reviewedAt: Date,
     reviewedBy: String,
-    rejectionReason: String
+    rejectionReason: String,
+    approvalMethod: {
+      type: String,
+      enum: ['automated', 'manual'],
+      default: 'manual'
+    },
+    
+    // 🤖 Automated Verification Results
+    automatedVerification: {
+      attempted: { type: Boolean, default: false },
+      score: { type: Number, default: 0 }, // 0-100 confidence score
+      confidence: { type: Number, default: 0 },
+      autoApproved: { type: Boolean, default: false },
+      requiresManualReview: { type: Boolean, default: false },
+      completedAt: Date,
+      
+      // Individual check results
+      checks: {
+        ein: {
+          verified: { type: Boolean, default: false },
+          confidence: { type: Number, default: 0 },
+          details: mongoose.Schema.Types.Mixed
+        },
+        stateRegistration: {
+          verified: { type: Boolean, default: false },
+          confidence: { type: Number, default: 0 },
+          details: mongoose.Schema.Types.Mixed
+        },
+        foodPermit: {
+          verified: { type: Boolean, default: false },
+          confidence: { type: Number, default: 0 },
+          details: mongoose.Schema.Types.Mixed
+        },
+        businessLicense: {
+          verified: { type: Boolean, default: false },
+          confidence: { type: Number, default: 0 },
+          details: mongoose.Schema.Types.Mixed
+        }
+      }
+    }
   },
   userId: {
     type: String,

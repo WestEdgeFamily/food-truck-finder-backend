@@ -18,6 +18,10 @@ const Review = require('./models/Review');
 
 // Import photo upload services
 const ImageProcessingService = require('./services/imageProcessingService');
+const AutomatedVerificationService = require('./services/automatedVerificationService');
+
+// Initialize services
+const automatedVerification = new AutomatedVerificationService();
 
 // Phase 3: Advanced Caching System
 const cache = new Map();
@@ -615,7 +619,8 @@ app.post('/api/auth/business-verification', async (req, res) => {
       yearsInBusiness,
       businessState,
       businessPhone,
-      businessEmail
+      businessEmail,
+      ein // Add EIN field for automated verification
     } = req.body;
     
     console.log(`🏢 Business verification submission: ${email}`);
@@ -625,11 +630,43 @@ app.post('/api/auth/business-verification', async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+
+    // 🤖 STEP 1: Attempt Automated Verification First
+    console.log(`🤖 Starting automated verification for: ${businessName}`);
     
-    // Update user with verification data
+    const automatedResult = await automatedVerification.verifyBusiness({
+      businessName,
+      businessLicenseNumber,
+      foodServicePermit,
+      businessState,
+      ein,
+      businessPhone,
+      businessEmail
+    });
+
+    let finalStatus = 'pending';
+    let isAutoVerified = false;
+    let verificationMessage = 'Business verification submitted successfully. Review typically takes 1-2 business days.';
+
+    // 🎯 STEP 2: Determine Final Status Based on Automated Results
+    if (automatedResult.overall.verified && automatedResult.automatedScore >= 80) {
+      // ✅ FULLY AUTOMATED APPROVAL
+      finalStatus = 'approved';
+      isAutoVerified = true;
+      verificationMessage = `🎉 Business automatically verified! (Confidence: ${automatedResult.automatedScore}%) You can now register your food truck.`;
+      console.log(`✅ AUTOMATED APPROVAL for ${businessName} (Score: ${automatedResult.automatedScore}%)`);
+      
+    } else if (automatedResult.requiresManualReview) {
+      // ⚠️ FALLBACK TO MANUAL REVIEW
+      finalStatus = 'pending_manual_review';
+      verificationMessage = `Automated verification incomplete (Score: ${automatedResult.automatedScore}%). Your application will be manually reviewed within 1-2 business days.`;
+      console.log(`⚠️ MANUAL REVIEW REQUIRED for ${businessName} (Score: ${automatedResult.automatedScore}%)`);
+    }
+
+    // 📝 STEP 3: Update User Record with All Verification Data
     user.businessVerification = {
-      isVerified: false,
-      verificationStatus: 'pending',
+      isVerified: isAutoVerified,
+      verificationStatus: finalStatus,
       businessLicenseNumber,
       foodServicePermit,
       businessType,
@@ -637,8 +674,27 @@ app.post('/api/auth/business-verification', async (req, res) => {
       businessState,
       businessPhone,
       businessEmail,
-      submittedAt: new Date()
+      ein,
+      submittedAt: new Date(),
+      
+      // 🤖 Automated Verification Results
+      automatedVerification: {
+        attempted: true,
+        score: automatedResult.automatedScore,
+        confidence: automatedResult.overall.confidence,
+        checks: automatedResult.checks,
+        autoApproved: isAutoVerified,
+        requiresManualReview: automatedResult.requiresManualReview,
+        completedAt: new Date()
+      }
     };
+
+    // If auto-approved, set approval timestamp
+    if (isAutoVerified) {
+      user.businessVerification.reviewedAt = new Date();
+      user.businessVerification.reviewedBy = 'automated_system';
+      user.businessVerification.approvalMethod = 'automated';
+    }
     
     // Update business name if provided
     if (businessName) {
@@ -647,12 +703,16 @@ app.post('/api/auth/business-verification', async (req, res) => {
     
     await user.save();
     
-    console.log(`✅ Business verification submitted for: ${email}`);
+    console.log(`✅ Business verification processed for: ${email} (Status: ${finalStatus})`);
     
     res.json({
       success: true,
-      message: 'Business verification submitted successfully. Review typically takes 1-2 business days.',
-      verificationStatus: 'pending'
+      message: verificationMessage,
+      verificationStatus: finalStatus,
+      isAutoVerified: isAutoVerified,
+      automatedScore: automatedResult.automatedScore,
+      confidence: automatedResult.overall.confidence,
+      requiresManualReview: automatedResult.requiresManualReview
     });
     
   } catch (error) {
