@@ -74,6 +74,10 @@ A comprehensive Express.js backend for the Food Truck Finder application with Mo
 - `PUT /api/trucks/:id/schedule` - Update truck schedule
 - `GET /api/trucks/:id/analytics` - Get truck analytics
 
+### Reviews
+- `GET /api/trucks/:id/reviews` - Get reviews for a truck (paginated)
+- `POST /api/trucks/:id/reviews` - Add a new review for a truck
+
 ### Users
 - `PUT /api/users/:userId/email` - Change user email
 - `PUT /api/users/:userId/password` - Change user password

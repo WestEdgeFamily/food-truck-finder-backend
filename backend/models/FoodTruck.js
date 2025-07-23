@@ -37,6 +37,10 @@ const foodTruckSchema = new mongoose.Schema({
   schedule: {
     type: mongoose.Schema.Types.Mixed
   },
+  timezone: {
+    type: String,
+    default: 'America/Denver' // Default to Mountain Time (includes MST/MDT)
+  },
   posSettings: {
     parentAccountId: String,
     childAccounts: [String],

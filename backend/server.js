@@ -130,21 +130,60 @@ mongoose.connect(MONGODB_URI)
     process.exit(1);
   });
 
-// Helper function to check if a truck is currently open
-function isCurrentlyOpen(schedule) {
+// Helper function to check if a truck is currently open with timezone support
+function isCurrentlyOpen(schedule, timezone = 'America/Denver') {
   if (!schedule) return false;
   
-  const now = new Date();
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const currentDay = dayNames[now.getDay()];
-  const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-  
-  const todaySchedule = schedule[currentDay];
-  if (!todaySchedule || !todaySchedule.isOpen) {
-    return false;
+  try {
+    // Get current time in the truck's timezone
+    const now = new Date();
+    const localTime = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      weekday: 'long'
+    }).formatToParts(now);
+    
+    const dayMap = {
+      'Monday': 'monday',
+      'Tuesday': 'tuesday', 
+      'Wednesday': 'wednesday',
+      'Thursday': 'thursday',
+      'Friday': 'friday',
+      'Saturday': 'saturday',
+      'Sunday': 'sunday'
+    };
+    
+    const currentDay = dayMap[localTime.find(part => part.type === 'weekday').value];
+    const currentTime = `${localTime.find(part => part.type === 'hour').value}:${localTime.find(part => part.type === 'minute').value}`;
+    
+    console.log(`🕐 Time check for ${timezone}: ${currentDay} ${currentTime}`);
+    
+    const todaySchedule = schedule[currentDay];
+    if (!todaySchedule || !todaySchedule.isOpen) {
+      return false;
+    }
+    
+    const isOpen = currentTime >= todaySchedule.open && currentTime <= todaySchedule.close;
+    console.log(`🚚 Schedule: ${todaySchedule.open}-${todaySchedule.close}, Current: ${currentTime}, Open: ${isOpen}`);
+    
+    return isOpen;
+  } catch (error) {
+    console.error('❌ Timezone error, falling back to UTC:', error);
+    // Fallback to original UTC logic
+    const now = new Date();
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = dayNames[now.getDay()];
+    const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+    
+    const todaySchedule = schedule[currentDay];
+    if (!todaySchedule || !todaySchedule.isOpen) {
+      return false;
+    }
+    
+    return currentTime >= todaySchedule.open && currentTime <= todaySchedule.close;
   }
-  
-  return currentTime >= todaySchedule.open && currentTime <= todaySchedule.close;
 }
 
 // Phase 2: Helper function to calculate distance between two points
@@ -360,6 +399,20 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
     
+    // For food truck owners, check if they have submitted and approved verification
+    if (role === 'owner') {
+      const verificationUser = await User.findOne({ email });
+      if (!verificationUser || 
+          !verificationUser.businessVerification ||
+          verificationUser.businessVerification.verificationStatus !== 'approved') {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Business verification required. Please complete the verification process before registering as a food truck owner.',
+          requiresVerification: true
+        });
+      }
+    }
+    
     // Create new user - LET MONGODB GENERATE THE _id, then use it consistently
     const newUser = new User({
       // DON'T set _id manually, let MongoDB generate it
@@ -548,6 +601,125 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
+// ===== BUSINESS VERIFICATION ROUTES =====
+
+// Submit business verification
+app.post('/api/auth/business-verification', async (req, res) => {
+  try {
+    const { 
+      email,
+      businessName,
+      businessLicenseNumber,
+      foodServicePermit,
+      businessType,
+      yearsInBusiness,
+      businessState,
+      businessPhone,
+      businessEmail
+    } = req.body;
+    
+    console.log(`🏢 Business verification submission: ${email}`);
+    
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    // Update user with verification data
+    user.businessVerification = {
+      isVerified: false,
+      verificationStatus: 'pending',
+      businessLicenseNumber,
+      foodServicePermit,
+      businessType,
+      yearsInBusiness,
+      businessState,
+      businessPhone,
+      businessEmail,
+      submittedAt: new Date()
+    };
+    
+    // Update business name if provided
+    if (businessName) {
+      user.businessName = businessName;
+    }
+    
+    await user.save();
+    
+    console.log(`✅ Business verification submitted for: ${email}`);
+    
+    res.json({
+      success: true,
+      message: 'Business verification submitted successfully. Review typically takes 1-2 business days.',
+      verificationStatus: 'pending'
+    });
+    
+  } catch (error) {
+    console.error('❌ Business verification error:', error);
+    res.status(500).json({ success: false, message: 'Server error during verification submission' });
+  }
+});
+
+// Check verification status
+app.get('/api/auth/verification-status/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    res.json({
+      success: true,
+      verificationStatus: user.businessVerification?.verificationStatus || 'not_submitted',
+      isVerified: user.businessVerification?.isVerified || false,
+      submittedAt: user.businessVerification?.submittedAt,
+      rejectionReason: user.businessVerification?.rejectionReason
+    });
+    
+  } catch (error) {
+    console.error('❌ Verification status check error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Admin endpoint to approve/reject verification (for future use)
+app.put('/api/admin/business-verification/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { action, rejectionReason } = req.body; // action: 'approve' or 'reject'
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    if (action === 'approve') {
+      user.businessVerification.isVerified = true;
+      user.businessVerification.verificationStatus = 'approved';
+      user.businessVerification.reviewedAt = new Date();
+    } else if (action === 'reject') {
+      user.businessVerification.isVerified = false;
+      user.businessVerification.verificationStatus = 'rejected';
+      user.businessVerification.rejectionReason = rejectionReason;
+      user.businessVerification.reviewedAt = new Date();
+    }
+    
+    await user.save();
+    
+    res.json({
+      success: true,
+      message: `Business verification ${action}d successfully`
+    });
+    
+  } catch (error) {
+    console.error('❌ Admin verification action error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // ===== USER MANAGEMENT ROUTES =====
 
 // Change email endpoint
@@ -645,7 +817,7 @@ app.get('/api/trucks', asyncHandler(async (req, res) => {
   // Update open/closed status for all trucks based on current time
   const updatedTrucks = trucks.map(truck => ({
     ...truck,
-    isOpen: isCurrentlyOpen(truck.schedule)
+    isOpen: isCurrentlyOpen(truck.schedule, truck.timezone)
   }));
   
   console.log(`📋 Getting all trucks: ${trucks.length} available`);
@@ -665,7 +837,7 @@ app.get('/api/trucks/:id', async (req, res) => {
       // Update open/closed status based on current time
       const updatedTruck = {
         ...truck.toObject(),
-        isOpen: isCurrentlyOpen(truck.schedule)
+        isOpen: isCurrentlyOpen(truck.schedule, truck.timezone)
       };
       res.json(updatedTruck);
     } else {
@@ -873,7 +1045,7 @@ app.get('/api/trucks/search', async (req, res) => {
     
     const updatedTrucks = trucks.map(truck => ({
       ...truck.toObject(),
-      isOpen: isCurrentlyOpen(truck.schedule)
+      isOpen: isCurrentlyOpen(truck.schedule, truck.timezone)
     }));
     
     console.log(`✅ Found ${trucks.length} trucks matching: ${q}`);
@@ -949,7 +1121,7 @@ app.get('/api/trucks/nearby', asyncHandler(async (req, res) => {
     // Add live status and calculate actual distance
     const enrichedTrucks = nearbyTrucks.map(truck => ({
       ...truck.toObject(),
-      isOpen: isCurrentlyOpen(truck.schedule),
+      isOpen: isCurrentlyOpen(truck.schedule, truck.timezone),
       distance: calculateDistance(latitude, longitude, truck.location.latitude, truck.location.longitude)
     })).sort((a, b) => a.distance - b.distance);
     
@@ -981,7 +1153,7 @@ app.get('/api/trucks/:id/schedule', async (req, res) => {
     res.json({
       success: true,
       schedule: truck.schedule,
-      isCurrentlyOpen: isCurrentlyOpen(truck.schedule)
+      isCurrentlyOpen: isCurrentlyOpen(truck.schedule, truck.timezone)
     });
   } catch (error) {
     console.error('❌ Error fetching schedule:', error);
@@ -1012,7 +1184,7 @@ app.put('/api/trucks/:id/schedule', async (req, res) => {
         success: true, 
         message: 'Schedule updated successfully',
         schedule: truck.schedule,
-        isCurrentlyOpen: isCurrentlyOpen(truck.schedule)
+        isCurrentlyOpen: isCurrentlyOpen(truck.schedule, truck.timezone)
       });
     } else {
       res.status(404).json({ message: 'Food truck not found' });
@@ -1033,7 +1205,7 @@ app.post('/api/trucks/update-schedules', async (req, res) => {
     
     for (const truck of trucks) {
       const wasOpen = truck.isOpen;
-      const shouldBeOpen = isCurrentlyOpen(truck.schedule);
+      const shouldBeOpen = isCurrentlyOpen(truck.schedule, truck.timezone);
       
       if (wasOpen !== shouldBeOpen) {
         await FoodTruck.findOneAndUpdate(
@@ -1112,7 +1284,7 @@ app.get('/api/users/:userId/favorites', async (req, res) => {
     const trucks = await FoodTruck.find({ id: { $in: truckIds } });
     const updatedTrucks = trucks.map(truck => ({
       ...truck.toObject(),
-      isOpen: isCurrentlyOpen(truck.schedule)
+      isOpen: isCurrentlyOpen(truck.schedule, truck.timezone)
     }));
     
     console.log(`✅ Found ${trucks.length} favorite trucks for user: ${user._id}`);

@@ -28,6 +28,29 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  // Business verification fields
+  businessVerification: {
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    verificationStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'not_submitted'],
+      default: 'not_submitted'
+    },
+    businessLicenseNumber: String,
+    foodServicePermit: String,
+    businessType: String,
+    yearsInBusiness: String,
+    businessState: String,
+    businessPhone: String,
+    businessEmail: String,
+    submittedAt: Date,
+    reviewedAt: Date,
+    reviewedBy: String,
+    rejectionReason: String
+  },
   userId: {
     type: String,
     unique: true,
