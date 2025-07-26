@@ -65,6 +65,20 @@ typings/
 .env.local
 .env.production
 
+# Security - Never commit these!
+*.keystore
+*.jks
+**/android/key.properties
+**/android/local.properties
+**/ios/Runner/GoogleService-Info.plist
+google-services.json
+GoogleService-Info.plist
+
+# API keys and secrets
+api_keys.txt
+secrets.json
+credentials.json
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
